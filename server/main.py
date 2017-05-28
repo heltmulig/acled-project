@@ -201,20 +201,14 @@ def prophet_to_plot(forecast, df_train, df_val):
     prophet_b_band.data['x'] = np.append(x_data, x_data[::-1])
     prophet_b_band.data['y'] = np.append(lowerband, upperband[::-1])
 
-    # Bollinger shading glyph:
-    #band_x = np.append(x_data, x_data[::-1])
-    #band_y = np.append(lowerband, upperband[::-1])
-
 
 def get_prophet_debug_text():
     return "Status: Coordinates {}, {}, {}, {}".format(
         slider_x1.value, slider_y1.value,
         slider_x2.value, slider_y2.value)
 
-
-
 def get_start_index():
-    val = max(0, (slider_et.value-1) - (slider_ws.value-1))
+    val = max(0, slider_et.value - slider_ws.value)
     return val
 
 def get_end_index():
@@ -255,10 +249,6 @@ p = bokeh_plot_map(acled_cds, source_prophet, data='value',
         plot_dim=plot_dim)
 
 # Adding legend:
-#legend_params = {'color_mapper_type': color_mapper_type,
-#                 'min': min(acled_cds.data['value']),
-#                 'max': max(acled_cds.data['value'])
-#                 }
 legend = bokeh_add_legend(palette, plot_dim)
 
 text_dataset = Div(text='<h3>Area and time parameters</h3>')
