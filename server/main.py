@@ -1,3 +1,7 @@
+"""ACLED Science Laboratory
+
+A Bokeh server application."""
+
 # Adding modules folder to sys.path:
 import sys
 sys.path.insert(0, 'modules')
@@ -434,9 +438,9 @@ fig_prophet.yaxis[0].axis_label = '{} in time window'.format(variable.capitalize
 fig_prophet.title.text_font_size = "18px"
 fig_prophet.grid.grid_line_alpha = 0.7
 fig_prophet.x_range.range_padding = 0
-fig_prophet.patch('x', 'y', source=prophet_b_band, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
-fig_prophet.line('x', 'y', source=prophet_cds_y_hat, line_width=2, line_alpha=0.6)
-fig_prophet.scatter('x', 'y', source=prophet_cds_y)
-fig_prophet.scatter('x', 'y', source=prophet_cds_y_val, color='red')
+fig_prophet.patch('x', 'y', legend='Uncertainty', source=prophet_b_band, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
+fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat, line_width=2, line_alpha=0.6)
+fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y)
+fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_val, color='red')
 
 curdoc().add_root(column(fig_africa, fig_prophet))
