@@ -211,81 +211,37 @@ def get_prophet_debug_text():
         slider_x1.value, slider_y1.value,
         slider_x2.value, slider_y2.value)
 
-def get_period_text():
-    end_of_period = slider_et.value  # current_month
-    period_size = slider_ws.value    # prev. months to accumulate
-    start_of_period = max(1, end_of_period - period_size)
-    log.debug('(start_of_period=%d,end_of_period=%d)' % (start_of_period, end_of_period))
-    return "<table><tr><td>Start of period:</td><td>{}</td></tr><tr><td>End of period (including):</td><td>{}</td></tr></table>".format(
-        df_piv.columns[start_of_period-1].strftime("%Y-%m"),
-        df_piv.columns[end_of_period-1].strftime("%Y-%m"))
 
-'''
+
 def get_start_index():
-    val = max(0, slider_et.value - slider_ws.value)
+    val = max(0, (slider_et.value-1) - (slider_ws.value-1))
     return val
 
 def get_end_index():
-    val = min(number_of_months, slider_et.value)
+    val = min(number_of_months, slider_et.value-1)
     return val
+
+def get_period_text():
+    log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
+    return "<table><tr><td>Start of period:</td><td>{}</td></tr><tr><td>End of period (including):</td><td>{}</td></tr></table>".format(
+        df_piv.columns[get_start_index()].strftime("%Y-%m"),
+        df_piv.columns[get_end_index()].strftime("%Y-%m"))
+
+def update_datasources():
+    text_period.text = get_period_text()
+    acled_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()+1].sum(axis=1)
+    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
 
 def slider_et_callback(attrname, old, new):
     """Current month"""
-    #log.debug('slider_et_callback (value=%d)' % slider_et.value)
-    #import pdb; pdb.set_trace()
-    #end_of_period = slider_et.value
-    #period_size = slider_ws.value
-    #start_of_period = max(0, end_of_period - period_size)
     # Upate new range of 'months to sum' slider
-    slider_ws.update(end=min(get_start_index(), get_end_index()))
-    slider_ws.value = min(1, slider_ws.value, slider_et.value)
-    #slider_ws.value = min(period_size, end_of_period)
-    text_period.text = get_period_text()
-    log.debug('slider_et_callback (value=%d) (start=%d,end=%d)' % (slider_et.value, get_start_index(), get_end_index()))
-    acled_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()].sum(axis=1)
-    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
+    slider_ws.update(end=slider_et.value)
+    slider_ws.value = min(slider_ws.value, slider_et.value)
+    update_datasources()
 
 def slider_ws_callback(attrname, old, new):
     """Months to accumulate"""
-    #log.debug('slider_ws_callback (value=%d)' % slider_ws.value)
-    #end_of_period = slider_et.value
-    #period_size = slider_ws.value
-    #start_of_period = max(0, end_of_period - period_size)
-    text_period.text = get_period_text()
-    log.debug('slider_ws_callback (value=%d) (start=%d,end=%d)' % (slider_et.value, get_start_index(), get_end_index()))
-    #if start_of_period == 0: import pdb; pdb.set_trace()
-    acled_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()].sum(axis=1)
-    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
-'''
-
-def slider_ws_callback(attrname, old, new):
-    #log.debug('slider_ws_callback (value=%d)' % slider_ws.value)
-    text_period.text = get_period_text()
-    end_of_period = slider_et.value
-    period_size = slider_ws.value
-    start_of_period = max(0, end_of_period - period_size)
-    log.debug('slider_ws_callback (value=%d) (start=%d,end=%d)' % (slider_et.value,start_of_period,end_of_period))
-    #if start_of_period == 0: import pdb; pdb.set_trace()
-    acled_cds.data['value'] = df_piv.iloc[:, start_of_period:end_of_period+1].sum(axis=1)
-    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
-
-def slider_et_callback(attrname, old, new):
-    #log.debug('slider_et_callback (value=%d)' % slider_et.value)
-    text_period.text = get_period_text()
-    end_of_period = slider_et.value
-    period_size = slider_ws.value
-    start_of_period = max(0, end_of_period - period_size)
-    # Upate new range of 'months to sum' slider
-    slider_ws.update(end=end_of_period)
-    slider_ws.value = min(slider_ws.value, end_of_period)
-    log.debug('slider_et_callback (value=%d) (start=%d,end=%d)' % (slider_et.value,start_of_period,end_of_period))
-    #acled_cds.data['value'] = df_piv.iloc[:, slider_et.value]
-    #import pdb; pdb.set_trace()
-    ####################
-    #if start_of_period == 0: import pdb; pdb.set_trace()
-    acled_cds.data['value'] = df_piv.iloc[:, start_of_period:end_of_period+1].sum(axis=1)
-    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
-
+    update_datasources()
 
 # Example plot of Africa:
 plot_dim = 850

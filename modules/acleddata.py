@@ -160,7 +160,7 @@ class ACLED:
         """
         from shapely.geometry import Point
         df = pandas_df.loc[:, ['latitude','longitude']].apply(
-            lambda df: Point(df.latitude, df.longitude), 
+            lambda df: Point(df.latitude, df.longitude),
             axis=1)
         pandas_df.loc[:, 'geo_point'] = df
 
@@ -225,7 +225,7 @@ class ACLED:
         sym_diff = acled_columns.symmetric_difference(csv_columns)
         assert not sym_diff, "OH NO! Inconsistent header names found: %s " % (sym_diff)
 
-    
+
     def pandas_df_to_mongodb(self, pandas_df):
         """
         Imports a pandas.DataFrame into mongodb.
@@ -261,7 +261,7 @@ class ACLED:
         df = pandas.read_csv(f, dtype=self.ACLED_COLUMN_DTYPES, sep=sep,
                              engine='c', keep_default_na=False)
         f.close()
- 
+
         self._remove_duplicates(df)
         # dup_indexes = self._get_indexes_of_duplicates(df)
         self._str_to_datetime(df)
@@ -269,7 +269,7 @@ class ACLED:
         result = self.pandas_df_to_mongodb(df)
         print(len(result.inserted_ids), "records inserted to mongodb,",
               len(csvblob.splitlines()), "lines in csv. (Investigate difference)")
- 
+
         return self.pandas_df_to_mongodb(df)
 
 
@@ -327,7 +327,7 @@ class ACLED:
     def mongodb_update_database(self, to_csv_file=None, force=False):
         """
         Query the mongodb server to find the most recent entry and query
-        ACLED API server for new data if data is older than 7 days.
+        ACLED API server for new data if data is older than 30 days.
 
         Args:
             to_csv_file (str):  Filename to write new csv data to
@@ -339,7 +339,7 @@ class ACLED:
 
         delta_days = (datetime.datetime.today() - date).days
 
-        if force or delta_days > 7:
+        if force or delta_days > 30:
             datestr = date.strftime('%Y-%m-%d')
             # TODO:
             # Ask for one day prior to datestr (due to $gt greater than)?
