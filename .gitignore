@@ -1,0 +1,12 @@
+__pycache__
+.DS_store
+*.pyc
+.ipynb_checkpoints
+
+# Windows thumbnail cache files
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# Git-config ignored
+config
