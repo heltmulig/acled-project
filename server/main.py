@@ -336,9 +336,9 @@ button_prophet = Button(label="Run Prohpet!")
 def button_callback():
     global x_range, y_range
     log.debug("Prophet predict!")
-    end_of_period = slider_et.value
-    period_size = slider_ws.value
-    start_of_period = max(0, end_of_period - period_size)
+    #end_of_period = slider_et.value
+    #period_size = slider_ws.value
+    #start_of_period = max(0, end_of_period - period_size)
     try:
         reg_changepoint = float(text_reg_changepoint.value)
         reg_season = float(text_reg_season.value)
@@ -349,7 +349,7 @@ def button_callback():
          'df': df_full,
          'x_range' : x_range,
          'y_range' : y_range,
-         'date_range' : [df_piv.columns[start_of_period], df_piv.columns[end_of_period]],
+         'date_range' : [df_piv.columns[get_start_index()], df_piv.columns[get_end_index()]],
          'log_of_y': 0 in checkbox_log.active,
          'time_window': slider_window_size.value,
          'pivot_aggr_fn': pivot_aggr_fn }
