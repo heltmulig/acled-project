@@ -22,10 +22,13 @@ palette.reverse()
 from presets import presets as selected_presets
 from presets import names as selected_presets_names
 from ProphetScripts import run_prophet_prediction
+from ImportShapefile import ImportShapefile
+from acled_preprocess import acled_preprocess
 
-
-log.debug("STARTED ACLED APPLICATION SESSION.")
-curdoc().title = "ACLED Science Laboratory"
+# Set app title
+app_name = "ACLED Data Science Laboratory"
+log.debug("STARTED SESSION " + app_name)
+curdoc().title = app_name
 
 # Predict events or fatailities (experimental Prohpet value)
 variable = 'events'
@@ -36,20 +39,15 @@ else:
 
 # Get acled pandas.DataFrame from server context
 df_full = curdoc().df_full
-
-from ImportShapefile import ImportShapefile
 link_ESRI_shp = 'data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp'
 gpd_df = ImportShapefile(link_ESRI_shp).get_df()
-
-from acled_preprocess import acled_preprocess
 df_full, gpd_df = acled_preprocess(df_full, gpd_df)
-
 df_piv = df_full.pivot_table(index='event_date',
                               columns='country',
                               values='fatalities',
                               aggfunc=pivot_aggr_fn)
 
-# Aggregate over time window:
+# Aggregate over time window
 time_window = '1M'
 df_piv = df_piv.resample(time_window,
                          closed='left',
@@ -59,25 +57,25 @@ df_piv = df_piv.resample(time_window,
 gpd_df['value'] = df_piv.iloc[:, 0]
 
 # INCOMPATIBILITY FIX
-# Angola is a MultiPolygon (two unconnected areas on land). Geopandas
-# separates these two polygons by inserting np.float(np.nan) in the
-# coordinate list. This type will cause a ValueError exception in
-# bokeh, stating the type is not JSON serializable.
+# Angola is a MultiPolygon (two disconnected areas on land). Geopandas
+# separates these two polygons by inserting np.float(np.nan) in between them
+# in the coordinate list. The np.nan type will cause a bokeh ValueError
+# exception bokeh, stating the type is not JSON serializable.
+# Workaround: Filter out the small portion of Angola.
 gpd_df.set_value('Angola', 'x', gpd_df.loc['Angola', 'x'][:66])
 gpd_df.set_value('Angola', 'y', gpd_df.loc['Angola', 'y'][:66])
 
 
-# BOKEH GLYPH DATA SOURCES
-acled_cds = ColumnDataSource(gpd_df.sort_index())
-legend_cds = ColumnDataSource(dict(tick_max=[ '{:.0f}'.format(max(acled_cds.data['value'])) ]))
+# Define data sources
+#
+africa_map_cds = ColumnDataSource(gpd_df.sort_index())
+colormap_legend_cds = ColumnDataSource(dict(tick_max=[ '{:.0f}'.format(max(africa_map_cds.data['value'])) ]))
+prophet_cds_y_hat_fit = ColumnDataSource(data=dict(x=[], y=[]))
+prophet_cds_y_train = ColumnDataSource(data=dict(x=[], y=[]))
+prophet_cds_y_validation = ColumnDataSource(data=dict(x=[], y=[]))
+prophet_cds_bband_uncertainty = ColumnDataSource(dict(x=[], y=[]))
 
-prophet_cds_y_hat = ColumnDataSource(data=dict(x=[], y=[]))
-prophet_cds_y = ColumnDataSource(data=dict(x=[], y=[]))
-prophet_cds_y_val = ColumnDataSource(data=dict(x=[], y=[]))
-
-prophet_b_band = ColumnDataSource(dict(x=[], y=[]))
-
-# Selection box parameters
+# Define selection box parameters and data source
 '''
   (0) ----------- (1)    (0) = (x0,y1)
      |           |       (1) = (x1,y1)
@@ -93,10 +91,10 @@ x_max = 52
 x_range = [16,35]
 y_range = [-15,10]
 
-source_prophet = ColumnDataSource(
+map_select_box_cds = ColumnDataSource(
            dict(x=[[x_range[0], x_range[1], x_range[1], x_range[0]]],
                 y=[[y_range[1], y_range[1], y_range[0], y_range[0]]],
-                name=['prophet_select']))
+                name=['map_select']))
 
 
 def bokeh_add_legend(palette, plot_dim):
@@ -132,12 +130,12 @@ def bokeh_add_legend(palette, plot_dim):
     tick_min = Text(x=width/2, y=0, text=['0'])
     legend.add_glyph(tick_min)
     tick_max = Text(x=width*(len(palette)+0.5), y=0, text='tick_max')
-    legend.add_glyph(legend_cds, tick_max)
+    legend.add_glyph(colormap_legend_cds, tick_max)
 
     return legend
 
 
-def bokeh_plot_map(bokeh_cds, source_prophet, data='value', title="Map with no title",
+def bokeh_plot_map(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
                    text_font_size=None, color_mapper_type='log', plot_dim=700):
     """ Finalize docstring (TODO)
     Plotting map contours
@@ -173,7 +171,7 @@ def bokeh_plot_map(bokeh_cds, source_prophet, data='value', title="Map with no t
     hover.tooltips=[("Country", "@name"),
                     (data.capitalize(), "@"+data)]
 
-    pglyph = fig.patches('x', 'y', source=source_prophet, color=["navy"],
+    pglyph = fig.patches('x', 'y', source=map_select_box_cds, color=["navy"],
                        alpha=[0.3], line_width=2)
 
     fig.add_tools(hover)
@@ -195,11 +193,11 @@ def prophet_to_plot(forecast, df_train, df_val):
     lowerband = forecast['yhat_upper']
     x_data = forecast['ds']
 
-    prophet_cds_y_hat.data = dict(x=forecast['ds'], y=forecast['yhat'])
-    prophet_cds_y.data = dict(x=df_train['ds'], y=df_train['y'])
-    prophet_cds_y_val.data = dict(x=df_val['ds'], y=df_val['y'])
-    prophet_b_band.data['x'] = np.append(x_data, x_data[::-1])
-    prophet_b_band.data['y'] = np.append(lowerband, upperband[::-1])
+    prophet_cds_y_hat_fit.data = dict(x=forecast['ds'], y=forecast['yhat'])
+    prophet_cds_y_train.data = dict(x=df_train['ds'], y=df_train['y'])
+    prophet_cds_y_validation.data = dict(x=df_val['ds'], y=df_val['y'])
+    prophet_cds_bband_uncertainty.data['x'] = np.append(x_data, x_data[::-1])
+    prophet_cds_bband_uncertainty.data['y'] = np.append(lowerband, upperband[::-1])
 
 
 def get_newest_date_in_db_text():
@@ -226,8 +224,8 @@ def get_period_text():
 
 def update_datasources():
     text_period.text = get_period_text()
-    acled_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()+1].sum(axis=1)
-    legend_cds.data['tick_max'] = ['{:.0f}'.format(max(acled_cds.data['value']))]
+    africa_map_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()+1].sum(axis=1)
+    colormap_legend_cds.data['tick_max'] = ['{:.0f}'.format(max(africa_map_cds.data['value']))]
 
 def slider_et_callback(attrname, old, new):
     """Current month"""
@@ -245,7 +243,7 @@ plot_dim = 850
 color_mapper_type='log'
 
 # Creating map:
-p = bokeh_plot_map(acled_cds, source_prophet, data='value',
+p = bokeh_plot_map(africa_map_cds, map_select_box_cds, data='value',
         title="Color map of accumulated reported events in selected time period",
         text_font_size = "18px",
         color_mapper_type=color_mapper_type,
@@ -294,10 +292,10 @@ slider_ws.on_change('value', slider_ws_callback)
 
 text_period = Div(text=get_period_text())
 
-slider_x1 = Slider(start=x_min, end=x_max, value=source_prophet.data['x'][0][0], step=0.1, title="X-left")
-slider_y1 = Slider(start=y_min, end=y_max, value=source_prophet.data['y'][0][2], step=0.1, title="Y-lower")
-slider_x2 = Slider(start=x_min, end=x_max, value=source_prophet.data['x'][0][1], step=0.1, title="X-right")
-slider_y2 = Slider(start=y_min, end=y_max, value=source_prophet.data['y'][0][0], step=0.1, title="Y-upper")
+slider_x1 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][0], step=0.1, title="X-left")
+slider_y1 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][2], step=0.1, title="Y-lower")
+slider_x2 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][1], step=0.1, title="X-right")
+slider_y2 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][0], step=0.1, title="Y-upper")
 def slider_callback(attr, old, new):
     global x_range, y_range
     slider_x1.value = min(slider_x1.value, slider_x2.value)
@@ -307,8 +305,8 @@ def slider_callback(attr, old, new):
     x_range = [slider_x1.value, slider_x2.value]
     y_range = [slider_y1.value, slider_y2.value]
     text_debug.text = get_prophet_debug_text()
-    source_prophet.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
-    source_prophet.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
+    map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
+    map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
 
 
 slider_x1.on_change('value', slider_callback)
@@ -389,10 +387,10 @@ fig_prophet.yaxis[0].axis_label = '{} in time window'.format(variable.capitalize
 fig_prophet.title.text_font_size = "18px"
 fig_prophet.grid.grid_line_alpha = 0.7
 fig_prophet.x_range.range_padding = 0
-fig_prophet.patch('x', 'y', legend='Uncertainty', source=prophet_b_band, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
-fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat, line_width=2, line_alpha=0.6)
-fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y)
-fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_val, color='red')
+fig_prophet.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
+fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, line_width=2, line_alpha=0.6)
+fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
+fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_validation, color='red')
 
 update_datasources()
 
