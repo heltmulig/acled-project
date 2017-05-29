@@ -199,7 +199,7 @@ def prophet_to_plot(forecast, df_train, df_validation):
 
     prophet_cds_y_hat_fit.data = dict(x=forecast['ds'], y=forecast['yhat'])
     prophet_cds_y_train.data = dict(x=df_train['ds'], y=df_train['y'])
-    prophet_cds_y_validation.data = dict(x=df_val['ds'], y=df_val['y'])
+    prophet_cds_y_validation.data = dict(x=df_validation['ds'], y=df_validation['y'])
     prophet_cds_bband_uncertainty.data['x'] = np.append(x_data, x_data[::-1])
     prophet_cds_bband_uncertainty.data['y'] = np.append(lowerband, upperband[::-1])
 
