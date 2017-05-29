@@ -220,7 +220,7 @@ def get_end_index():
 
 def get_period_text():
     #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
-    return "<table><tr><td>Start of month:</td><td>{}</td></tr><tr><td>End of month (including):</td><td>{}</td></tr></table>".format(
+    return "<table><tr><td>Start month:</td><td>{}</td></tr><tr><td>End month:</td><td>{}</td></tr></table>".format(
         df_piv.columns[get_start_index()].strftime("%Y-%m"),
         df_piv.columns[get_end_index()].strftime("%Y-%m"))
 
@@ -282,13 +282,13 @@ select_preset.on_change('value', select_preset_callback)
 
 # Slider indicating end month of time window:
 number_of_months = df_piv.shape[1]
-slider_et = Slider(start=2, end=number_of_months, value=2, step=1,  # current month
+slider_et = Slider(start=2, end=number_of_months, value=number_of_months, step=1,  # current month
                    title="Last month in time window")
 slider_et.on_change('value', slider_et_callback)
 
 # Slider indicating window size:
-slider_ws = Slider(start=1, end=slider_et.value, value=1, step=1,   # acc months
-                   title="Previous months to accumulate (including)")
+slider_ws = Slider(start=1, end=slider_et.value, value=36, step=1,   # acc months
+                   title="Previous months to accumulate")
 slider_ws.on_change('value', slider_ws_callback)
 
 
