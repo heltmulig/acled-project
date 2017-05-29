@@ -121,7 +121,7 @@ def africa_map_add_legend(palette, plot_dim):
         outline_line_color="#FFFFFF",
     )
 
-    # Add the legend color boxes and text:
+    # Add the legend color boxes and text
     width = 40
     height = 20
     for i, color in enumerate(palette):
@@ -134,9 +134,9 @@ def africa_map_add_legend(palette, plot_dim):
 
     tick_min = Text(x=width/2, y=0, text=['0'])
     legend.add_glyph(tick_min)
-    text_log = Text(x=width*3, y=0, text=['Logarithmic scale'])
-    legend.add_glyph(text_log)
-    tick_max = Text(x=width*(len(palette)+0.5), y=0, text='tick_max')
+    text_scale = Text(x=width*3, y=0, text=['Logarithmic scale'])
+    legend.add_glyph(text_scale)
+    tick_max = Text(x=width*(len(palette)), y=0, text='tick_max')
 
     legend.add_glyph(colormap_legend_cds, tick_max)
 
