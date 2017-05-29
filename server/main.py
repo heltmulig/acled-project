@@ -76,7 +76,7 @@ africa_map_cds = ColumnDataSource(gpd_df.sort_index())
 colormap_legend_cds = ColumnDataSource(dict(tick_max=[ '{:.0f}'.format(max(africa_map_cds.data['value'])) ]))
 prophet_cds_y_hat_fit = ColumnDataSource(data=dict(x=[], y=[]))
 prophet_cds_y_train = ColumnDataSource(data=dict(x=[], y=[]))
-prophet_cds_y_validation = ColumnDataSource(data=dict(x=[], y=[]))
+prophet_cds_y_test = ColumnDataSource(data=dict(x=[], y=[]))
 prophet_cds_bband_uncertainty = ColumnDataSource(dict(x=[], y=[]))
 
 # Define selection box parameters and data source
@@ -184,12 +184,12 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
     return fig
 
 
-def prophet_to_plot(forecast, df_train, df_validation):
+def prophet_to_plot(forecast, df_train, df_test):
     """Input to main.py:
 
     forecast: Data from trained prophet model
     df_train: Raw data used in training
-    df_validation: Raw data for validation (same preprocessing as for df_train)
+    df_test: Raw data for validation (same preprocessing as for df_train)
     """
 
     # Define Bollinger Bands.
@@ -199,7 +199,7 @@ def prophet_to_plot(forecast, df_train, df_validation):
 
     prophet_cds_y_hat_fit.data = dict(x=forecast['ds'], y=forecast['yhat'])
     prophet_cds_y_train.data = dict(x=df_train['ds'], y=df_train['y'])
-    prophet_cds_y_validation.data = dict(x=df_validation['ds'], y=df_validation['y'])
+    prophet_cds_y_test.data = dict(x=df_test['ds'], y=df_test['y'])
     prophet_cds_bband_uncertainty.data['x'] = np.append(x_data, x_data[::-1])
     prophet_cds_bband_uncertainty.data['y'] = np.append(lowerband, upperband[::-1])
 
@@ -391,7 +391,7 @@ fig_prophet.x_range.range_padding = 0
 fig_prophet.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
 fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, line_width=2, line_alpha=0.6)
 fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
-fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_validation, color='red')
+fig_prophet.scatter('x', 'y', legend='Test data', source=prophet_cds_y_test, color='red')
 
 # Populate time window data sources
 update_time_window_datasources()
