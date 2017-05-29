@@ -211,7 +211,7 @@ def get_prophet_debug_text():
         slider_x2.value, slider_y2.value)
 
 def get_start_index():
-    val = max(0, slider_et.value - slider_ws.value)
+    val = max(0, slider_et.value - slider_ws.value - 1)
     return val
 
 def get_end_index():
@@ -232,8 +232,8 @@ def update_datasources():
 def slider_et_callback(attrname, old, new):
     """Current month"""
     # Upate new range of 'months to sum' slider
-    slider_ws.update(end=slider_et.value)
-    slider_ws.value = min(slider_ws.value, slider_et.value)
+    slider_ws.update(end=slider_et.value-1)
+    slider_ws.value = min(slider_ws.value, slider_et.value-1)
     update_datasources()
 
 def slider_ws_callback(attrname, old, new):
@@ -282,7 +282,7 @@ select_preset.on_change('value', select_preset_callback)
 
 # Slider indicating end month of time window:
 number_of_months = df_piv.shape[1]
-slider_et = Slider(start=1, end=number_of_months, value=1, step=1,  # current month
+slider_et = Slider(start=2, end=number_of_months, value=2, step=1,  # current month
                    title="Last month in time window")
 slider_et.on_change('value', slider_et_callback)
 
@@ -335,7 +335,8 @@ text_periods = TextInput(value='1', title='Number of periods to predict (integer
 button_prophet = Button(label="Run Prohpet!")
 def button_callback():
     global x_range, y_range
-    log.debug("Prophet predict!")
+    log.debug("***** PROPHET PREDICT! (start_index={}, end_index={})".format(df_piv.columns[get_start_index()].strftime("%Y-%m"),
+    df_piv.columns[get_end_index()].strftime("%Y-%m")))
     #end_of_period = slider_et.value
     #period_size = slider_ws.value
     #start_of_period = max(0, end_of_period - period_size)
