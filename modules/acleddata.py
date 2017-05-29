@@ -81,16 +81,6 @@ class ACLED:
 
         self.acled_download_database()
 
-        # add geo_point fields to database, if necessary
-        #try:
-        #    self.c.find({'geo_point': { '$exists': True }}).next()
-        #except StopIteration:
-        #    print('Appending geo_points to existing database...')
-        #    df = self.mongodb_get_entire_database()
-        #    #self.append_geo_points(df)
-        #    self.c.drop()
-        #    self.pandas_df_to_mongodb(df)
-
 
     def acled_download_database(self):
         """
@@ -317,7 +307,6 @@ class ACLED:
         """
         Returns the newest event_date in the mongodb database.
         """
-        #query = {'timestamp': {'$gt':starttime,'$lt':endtime}}
         data = self.c.find().sort([('event_date', pymongo.DESCENDING)]).limit(1)
         if data.count() == 0:
             return None
