@@ -1,9 +1,21 @@
+"""This module handles the interface between the 'ACLED data science laboratory'
+application and Prophet.
+
+Intended interface is the function 'run_prophet_prediction' that takes the input
+dataframe, masking parameters (time and space) as well as Prophet model
+parameters.
+
+Functions:
+prophet_prepare_df_cols: Preprocessing of dataframe, including masking
+prophet_train:           Runs Prophet training, returns trained model
+run_prophet_plot:        Plots model. Note: Cannot be ran from Bokeh application
+run_prophet_prediction:  Function taking in dataframe and masking parameters,
+                         running preprocessing and training and returns the
+                         forecast from the model, training data and test data.
+"""
 import numpy as np
 from fbprophet import Prophet
 import pandas as pd
-
-#from datetime import datetime, timedelta, date
-from datetime import timedelta
 
 def prophet_prepare_df_cols(df, x_range, y_range, date_range,
                             days_to_test, log_of_y=False, time_window=7,
@@ -45,8 +57,8 @@ def prophet_prepare_df_cols(df, x_range, y_range, date_range,
 
     # Create pivot table, using selected aggregate function:
     df_piv = df_masked.pivot_table(index=date_col,
-                                    values=[y_col],
-                                    aggfunc=pivot_aggr_fn)
+                                   values=[y_col],
+                                   aggfunc=pivot_aggr_fn)
 
     if log_of_y:
         df_piv[y_col] = np.log(df_piv[y_col])
@@ -80,7 +92,7 @@ def prophet_prepare_df_cols(df, x_range, y_range, date_range,
     return df_train, df_test
 
 
-def prophet_train(df_train, periods=100, freq='1d', prophet_param={}):
+def prophet_train(df_train, prophet_param, periods=100, freq='1d'):
     """Fits df using Prophet. Predicts period (periods*freq) into the future,
     Where freq has a frequency unit (e.g. 'd', 'w').
 
@@ -91,31 +103,31 @@ def prophet_train(df_train, periods=100, freq='1d', prophet_param={}):
 
     Returns Prophet object.
     """
-    m = Prophet(**prophet_param)
+    model = Prophet(**prophet_param)
 
-    m.fit(df_train)
-    future = m.make_future_dataframe(periods, freq)
-    forecast = m.predict(future)
+    model.fit(df_train)
+    future = model.make_future_dataframe(periods, freq)
+    forecast = model.predict(future)
 
-    return m, forecast
+    return model, forecast
 
-def run_prophet_plot(m, forecast):
+def run_prophet_plot(model, forecast):
     """Plots trained model using Prophets built in methods.
     This function is not used by Bokeh app, but can be used
     from notebook to analyse data further.
 
     Params:
-    m: Prophet object [Where m.predict(*) has been run]
-    forecast: result of m.predict(*), as executed on Prophet object m
+    m: Prophet object [Where model.predict(*) has been run]
+    forecast: result of model.predict(*), as executed on Prophet object m
     """
     from matplotlib import pyplot as plt
 
-    m.plot(forecast)
+    model.plot(forecast)
 
-    for cp in m.changepoints:
-        plt.axvline(cp, c='gray', ls='--', lw=1)
+    for changepoint in model.changepoints:
+        plt.axvline(changepoint, c='gray', ls='--', lw=1)
 
-    m.plot_components(forecast)
+    model.plot_components(forecast)
 
     return None
 
@@ -156,9 +168,10 @@ def run_prophet_prediction(preprocess_params, reg_changepoint, reg_season,
         'weekly_seasonality': False
     }
 
-    m, forecast = prophet_train(df_train, periods=periods, freq=freq, prophet_param=prophet_param)
+    model, forecast = prophet_train(df_train, prophet_param=prophet_param,
+                                    periods=periods, freq=freq)
 
     if prophet_plot:
-        run_prophet_plot(m, forecast)
+        run_prophet_plot(model, forecast)
 
     return forecast, df_train, df_test
