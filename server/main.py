@@ -394,4 +394,6 @@ fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat, line
 fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y)
 fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_val, color='red')
 
+update_datasources()
+
 curdoc().add_root(column(fig_africa, fig_prophet))
