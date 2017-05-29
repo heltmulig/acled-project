@@ -39,7 +39,7 @@ presets = [
 },
 {
     'name' : "Sudan 2011-2015 (Parameter issue #1)",
-    'current_month': 227,
+    'current_month': 228,
     'acc_months': 58,
     'selected_area' : [21.8, 39.1, 8.7, 22.3],
     'log_of_y': False,
@@ -51,7 +51,7 @@ presets = [
 },
 {
     'name' : "Sudan 2011-2015 (Parameter issue #2)",
-    'current_month': 227,
+    'current_month': 228,
     'acc_months': 58,
     'selected_area' : [21.8, 39.1, 8.7, 22.3],
     'log_of_y': False,
