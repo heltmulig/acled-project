@@ -94,7 +94,7 @@ def prophet_train(df_train, periods=20, freq='2w', prophet_param={}):
 
     return m, forecast
 
-def prophet_plot(m, forecast):
+def run_prophet_plot(m, forecast):
     """Plots trained model using Prophets built in methods.
     This function is not used by Bokeh app, but can be used
     from notebook to analyse further.
@@ -103,16 +103,22 @@ def prophet_plot(m, forecast):
     m: Prophet object [Where m.predict(*) has been run]
     forecast: result of m.predict(*)
     """
+    from matplotlib import pyplot as plt
+
     m.plot(forecast)
-    m.plot_components(forecast)
 
     for cp in m.changepoints:
         plt.axvline(cp, c='gray', ls='--', lw=1)
 
+    m.plot_components(forecast)
+
+
+
+
     return None
 
 def run_prophet_prediction(preprocess_params, reg_changepoint, reg_season,
-                           periods, freq):
+                           periods, freq, prophet_plot=False):
     days_to_validate= periods*freq
     freq = str(freq)+'d'
 
@@ -120,7 +126,6 @@ def run_prophet_prediction(preprocess_params, reg_changepoint, reg_season,
 
     df_train, df_val = prophet_prepare_df_cols(**preprocess_params)
 
-    print("REG SEASON ", reg_season)
     prophet_param = {
         'changepoint_prior_scale': reg_changepoint,
         'seasonality_prior_scale': reg_season,
@@ -131,5 +136,8 @@ def run_prophet_prediction(preprocess_params, reg_changepoint, reg_season,
     }
 
     m, forecast = prophet_train(df_train, periods=periods, freq=freq, prophet_param=prophet_param)
+
+    if prophet_plot:
+        run_prophet_plot(m, forecast)
 
     return forecast, df_train, df_val
