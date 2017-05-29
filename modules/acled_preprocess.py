@@ -1,4 +1,9 @@
+"""Function that runs the pre-processing necessary to join the ACLED data set
+and using it together with the ESRI shapefile data.
 
+This pre-processing is specific to the data points in ACLED as well as the
+particular ESRI shapefile. New datapoints may require updates to this file.
+"""
 def acled_preprocess(acled_df, gpd_df, verbose=False):
     """ Function handlig pre-processing of the ACLED data and the ESRI
     shapefile data (used by geopandas for plotting).
@@ -16,11 +21,11 @@ def acled_preprocess(acled_df, gpd_df, verbose=False):
         """ Prints difference between the acled and esri column containing
         country names
         """
-        a = set(acled['country'].unique())
-        g = set(esri.index.unique())
+        a_set = set(acled['country'].unique())
+        g_set = set(esri.index.unique())
 
-        a_diff = a.difference(g)
-        g_diff = g.difference(a)
+        a_diff = a_set.difference(g_set)
+        g_diff = g_set.difference(a_set)
 
         if verbose:
             print("-- Comparing names in the two datasets --")
@@ -30,9 +35,9 @@ def acled_preprocess(acled_df, gpd_df, verbose=False):
         return a_diff, g_diff
 
     # Mask ESRI data on countries in Africa:
-    mask = gpd_df['continent']=='Africa'
-    gpd_df = gpd_df.loc[mask,:].reset_index(drop=True)
-    gpd_df = gpd_df.loc[:, ('name','subregion','x', 'y', 'geometry', 'pop_est')]
+    mask = gpd_df['continent'] == 'Africa'
+    gpd_df = gpd_df.loc[mask, :].reset_index(drop=True)
+    gpd_df = gpd_df.loc[:, ('name', 'subregion', 'x', 'y', 'geometry', 'pop_est')]
     gpd_df.set_index("name", inplace=True)
 
     # First comparison, in order to print initial difference if verbose=True
@@ -51,16 +56,16 @@ def acled_preprocess(acled_df, gpd_df, verbose=False):
     gpd_df.rename(new_names, inplace=True)
 
     # Removing whitespace in a 'Mozambique ' entry):
-    acled_df.loc[acled_df['country']=='Mozambique ', 'country'] = 'Mozambique'
+    acled_df.loc[acled_df['country'] == 'Mozambique ', 'country'] = 'Mozambique'
 
-    """
-    Finally, 'W. Sahara', 'Somaliland' are more complicated matters, as
+    """Finally, 'W. Sahara', 'Somaliland' are more complicated matters, as
     they are disputed territories.
 
     'W. Sahara':
         The approach that aligns best with the ACLED dataset is
         to consider Western Sahara to be a part of Morocco, ref e.g.:
-        https://en.wikipedia.org/wiki/Sahrawi_Arab_Democratic_Republic#International_recognition_and_membership
+        https://en.wikipedia.org/wiki/Sahrawi_Arab_Democratic_Republic [...]
+            [...] #International_recognition_and_membership
 
     'Somaliland':
         In the ACLED dataset, Somaliland is considered part of Somalia
@@ -68,8 +73,7 @@ def acled_preprocess(acled_df, gpd_df, verbose=False):
     We do the pairwise merging as described above.
     """
     merge_pairs = [['Somalia', 'Somaliland'],
-              ['Morocco', 'W. Sahara']
-              ]
+                   ['Morocco', 'W. Sahara']]
 
     for pair in merge_pairs:
         assert pair[0] in gpd_df.index, "{0} not in index of gpd_df.".format(pair[0])
