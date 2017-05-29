@@ -30,6 +30,10 @@ app_name = "ACLED Data Science Laboratory"
 log.debug("STARTED SESSION " + app_name)
 curdoc().title = app_name
 
+# Set dimension of Africa map, and mapper function
+plot_dim = 850
+color_mapper_type='log'
+
 # Predict events or fatailities (experimental Prohpet value)
 variable = 'events'
 if variable == 'fatalities':
@@ -37,8 +41,10 @@ if variable == 'fatalities':
 else:
     pivot_aggr_fn = 'count'
 
-# Get acled pandas.DataFrame from server context
+# Get ACLED pandas.DataFrame from server context
 df_full = curdoc().df_full
+
+# Preprocess pandas and geopandas data frames
 link_ESRI_shp = 'data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp'
 gpd_df = ImportShapefile(link_ESRI_shp).get_df()
 df_full, gpd_df = acled_preprocess(df_full, gpd_df)
@@ -65,9 +71,7 @@ gpd_df['value'] = df_piv.iloc[:, 0]
 gpd_df.set_value('Angola', 'x', gpd_df.loc['Angola', 'x'][:66])
 gpd_df.set_value('Angola', 'y', gpd_df.loc['Angola', 'y'][:66])
 
-
 # Define data sources
-#
 africa_map_cds = ColumnDataSource(gpd_df.sort_index())
 colormap_legend_cds = ColumnDataSource(dict(tick_max=[ '{:.0f}'.format(max(africa_map_cds.data['value'])) ]))
 prophet_cds_y_hat_fit = ColumnDataSource(data=dict(x=[], y=[]))
@@ -97,7 +101,8 @@ map_select_box_cds = ColumnDataSource(
                 name=['map_select']))
 
 
-def bokeh_add_legend(palette, plot_dim):
+
+def africa_map_add_legend(palette, plot_dim):
     # Adds glyphs for legend. Based on:
     # https://github.com/chdoig/scipy2015-blaze-bokeh/blob/master/1.5%20Glyphs%20-%20Legend%20(solution).ipynb
 
@@ -135,8 +140,8 @@ def bokeh_add_legend(palette, plot_dim):
     return legend
 
 
-def bokeh_plot_map(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
-                   text_font_size=None, color_mapper_type='log', plot_dim=700):
+def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
+                    text_font_size=None, color_mapper_type='log', plot_dim=700):
     """ Finalize docstring (TODO)
     Plotting map contours
 
@@ -179,13 +184,12 @@ def bokeh_plot_map(bokeh_cds, map_select_box_cds, data='value', title="Map with 
     return fig
 
 
-def prophet_to_plot(forecast, df_train, df_val):
+def prophet_to_plot(forecast, df_train, df_validation):
     """Input to main.py:
 
     forecast: Data from trained prophet model
-
     df_train: Raw data used in training
-    df_val:   Raw data for validation (same preprocessing as for df_train)
+    df_validation: Raw data for validation (same preprocessing as for df_train)
     """
 
     # Define Bollinger Bands.
@@ -201,7 +205,8 @@ def prophet_to_plot(forecast, df_train, df_val):
 
 
 def get_newest_date_in_db_text():
-    return "<b>Newest event in database is {}</b>".format(df_full['event_date'].max().strftime("%Y-%m-%d"))
+    return "<b>Newest event in database is {}</b>".format(
+        df_full['event_date'].max().strftime("%Y-%m-%d"))
 
 def get_prophet_debug_text():
     return "Status: Coordinates {}, {}, {}, {}".format(
@@ -209,20 +214,20 @@ def get_prophet_debug_text():
         slider_x2.value, slider_y2.value)
 
 def get_start_index():
-    val = max(0, slider_et.value - slider_ws.value - 1)
-    return val
+    return max(0, slider_et.value - slider_ws.value - 1)
 
 def get_end_index():
-    val = min(number_of_months, slider_et.value-1)
-    return val
+    return min(number_of_months, slider_et.value-1)
 
 def get_period_text():
     #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
-    return "<table><tr><td>Start month:</td><td>{}</td></tr><tr><td>End month:</td><td>{}</td></tr></table>".format(
-        df_piv.columns[get_start_index()].strftime("%Y-%m"),
-        df_piv.columns[get_end_index()].strftime("%Y-%m"))
+    return "<table><tr><td>Start month:</td><td>{}</td></tr>" \
+           "<tr><td>End month:</td><td>{}</td></tr></table>".format(
+            df_piv.columns[get_start_index()].strftime("%Y-%m"),
+            df_piv.columns[get_end_index()].strftime("%Y-%m"))
 
-def update_datasources():
+def update_time_window_datasources():
+    """Push new data"""
     text_period.text = get_period_text()
     africa_map_cds.data['value'] = df_piv.iloc[:, get_start_index():get_end_index()+1].sum(axis=1)
     colormap_legend_cds.data['tick_max'] = ['{:.0f}'.format(max(africa_map_cds.data['value']))]
@@ -232,29 +237,17 @@ def slider_et_callback(attrname, old, new):
     # Upate new range of 'months to sum' slider
     slider_ws.update(end=slider_et.value-1)
     slider_ws.value = min(slider_ws.value, slider_et.value-1)
-    update_datasources()
+    update_time_window_datasources()
 
 def slider_ws_callback(attrname, old, new):
     """Months to accumulate"""
-    update_datasources()
-
-# Example plot of Africa:
-plot_dim = 850
-color_mapper_type='log'
-
-# Creating map:
-p = bokeh_plot_map(africa_map_cds, map_select_box_cds, data='value',
-        title="Color map of accumulated reported events in selected time period",
-        text_font_size = "18px",
-        color_mapper_type=color_mapper_type,
-        plot_dim=plot_dim)
-
-# Adding legend:
-legend = bokeh_add_legend(palette, plot_dim)
+    update_time_window_datasources()
 
 text_dataset = Div(text='<h3>Area and time parameters</h3>')
 
-select_preset = Select(title="Selected presets", value="None", options=["None"] + selected_presets_names)
+# Drop-down list: Presets
+select_preset = Select(title='Presets', value='None',
+                       options=['None'] + selected_presets_names)
 def select_preset_callback(attr, old, new):
     try:
         i = selected_presets_names.index(new)
@@ -268,35 +261,34 @@ def select_preset_callback(attr, old, new):
     slider_x2.value = selected_presets[i]['selected_area'][1]  # X-Right
     slider_y1.value = selected_presets[i]['selected_area'][2]  # Y-lower
     slider_y2.value = selected_presets[i]['selected_area'][3]  # Y-upper
-    checkbox_log.active = [0] if selected_presets[i]['log_of_y'] else []
+    checkbox_log_scale.active = [0] if selected_presets[i]['log_of_y'] else []
     slider_window_size.value = selected_presets[i]['time_window']
     text_reg_changepoint.value = str(selected_presets[i]['reg_changepoint'])
     text_reg_season.value = str(selected_presets[i]['reg_season'])
     slider_freq_days.value = selected_presets[i]['freq_days']
     text_periods.value = str(selected_presets[i]['periods'])
-
 select_preset.on_change('value', select_preset_callback)
 
-
-# Slider indicating end month of time window:
+# Slider: End month of time window
 number_of_months = df_piv.shape[1]
 slider_et = Slider(start=2, end=number_of_months, value=number_of_months, step=1,  # current month
                    title="Last month in time window")
 slider_et.on_change('value', slider_et_callback)
 
-# Slider indicating window size:
+# Slider: Time window size
 slider_ws = Slider(start=1, end=slider_et.value, value=36, step=1,   # acc months
                    title="Previous months to accumulate")
 slider_ws.on_change('value', slider_ws_callback)
 
-
+# Text: Start month / End month
 text_period = Div(text=get_period_text())
 
+# Sliders: Map box selection
 slider_x1 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][0], step=0.1, title="X-left")
 slider_y1 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][2], step=0.1, title="Y-lower")
 slider_x2 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][1], step=0.1, title="X-right")
 slider_y2 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][0], step=0.1, title="Y-upper")
-def slider_callback(attr, old, new):
+def slider_box_selection_callback(attr, old, new):
     global x_range, y_range
     slider_x1.value = min(slider_x1.value, slider_x2.value)
     slider_y1.value = min(slider_y1.value, slider_y2.value)
@@ -304,23 +296,22 @@ def slider_callback(attr, old, new):
     slider_y2.value = max(slider_y1.value, slider_y2.value)
     x_range = [slider_x1.value, slider_x2.value]
     y_range = [slider_y1.value, slider_y2.value]
-    text_debug.text = get_prophet_debug_text()
+    text_status.text = get_prophet_debug_text()
     map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
     map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
+slider_x1.on_change('value', slider_box_selection_callback)
+slider_y1.on_change('value', slider_box_selection_callback)
+slider_x2.on_change('value', slider_box_selection_callback)
+slider_y2.on_change('value', slider_box_selection_callback)
 
-
-slider_x1.on_change('value', slider_callback)
-slider_y1.on_change('value', slider_callback)
-slider_x2.on_change('value', slider_callback)
-slider_y2.on_change('value', slider_callback)
-
-widgets_dataset = widgetbox(text_dataset, select_preset, slider_et, slider_ws,
+# Create widgetbox of parameters
+widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws,
         text_period, slider_x1, slider_x2, slider_y2, slider_y1)
 
 
-# PROPHET WIDGETS
+# Prophet parameters
 text_prophet_parameters = Div(text='<h3>Prophet parameters</h3>')
-checkbox_log = CheckboxGroup(labels=['Logarithmic scale'], active=[])
+checkbox_log_scale = CheckboxGroup(labels=['Logarithmic scale'], active=[])
 slider_window_size = Slider(start=1, end=21, value=1, step=1,
                    title='Sliding window size')
 text_reg_changepoint = TextInput(value='1.0', title='Regularizer changepoint (decimal number)')
@@ -330,56 +321,66 @@ slider_freq_days = Slider(start=1, end=21, value=1, step=1,
 text_periods = TextInput(value='1', title='Number of periods to predict (integer)')
 
 # Calculate button
-button_prophet = Button(label="Run Prohpet!")
-def button_callback():
+button_run_prophet = Button(label="Run Prohpet!")
+def button_run_prophet_callback():
     global x_range, y_range
-    log.debug("***** PROPHET PREDICT! (start_index={}, end_index={})".format(df_piv.columns[get_start_index()].strftime("%Y-%m"),
-    df_piv.columns[get_end_index()].strftime("%Y-%m")))
-    #end_of_period = slider_et.value
-    #period_size = slider_ws.value
-    #start_of_period = max(0, end_of_period - period_size)
+    log.debug("***** PROPHET PREDICT! ***** (start_month={}, end_month{})".format(
+        df_piv.columns[get_start_index()].strftime("%Y-%m"),
+        df_piv.columns[get_end_index()].strftime("%Y-%m")))
     try:
         reg_changepoint = float(text_reg_changepoint.value)
         reg_season = float(text_reg_season.value)
     except ValueError:
-        text_debug.text = 'Regularizer: Not a decimal number!'
+        text_status.text = 'Regularizer: Not a decimal number!'
         return
     prophet_preprocessing_params = {
          'df': df_full,
          'x_range' : x_range,
          'y_range' : y_range,
          'date_range' : [df_piv.columns[get_start_index()], df_piv.columns[get_end_index()]],
-         'log_of_y': 0 in checkbox_log.active,
+         'log_of_y': 0 in checkbox_log_scale.active,
          'time_window': slider_window_size.value,
          'pivot_aggr_fn': pivot_aggr_fn }
     try:
         periods = int(text_periods.value)
     except ValueError:
-        text_debug.text = 'Number of periods: Not a valid integer!'
+        text_status.text = 'Number of periods: Not a valid integer!'
         return
-    text_debug.text = 'Running Prophet ...'
+    text_status.text = 'Running Prophet ...'
     try:
         start_time = datetime.now()
         prophet_to_plot(*run_prophet_prediction(
                             prophet_preprocessing_params, reg_changepoint, reg_season,
                             periods=periods, freq=slider_freq_days.value))
         end_time = datetime.now()
-        text_debug.text = 'Prophet completed in {:d} seconds'.format((end_time - start_time).seconds)
+        text_status.text = 'Prophet completed in {:d} seconds'.format((end_time - start_time).seconds)
     except KeyError as e:
-        text_debug.text = 'Prophet error: No events within selection box {}'.format(str(e))
+        text_status.text = 'Prophet error: No events within selection box {}'.format(str(e))
     except Exception as e:
-        text_debug.text = 'Prophet error: {}'.format(str(e))
+        text_status.text = 'Prophet error: {}'.format(str(e))
+button_run_prophet.on_click(button_run_prophet_callback)
 
-button_prophet.on_click(button_callback)
+# Text: Status to display newest date in
+text_status = Div(text=get_newest_date_in_db_text())
 
-text_debug = Div(text=get_newest_date_in_db_text())
+widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log_scale,
+                            slider_window_size, text_reg_changepoint,
+                            text_reg_season, slider_freq_days, text_periods,
+                            button_run_prophet, text_status)
 
-widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log, slider_window_size,
-                    text_reg_changepoint, text_reg_season, slider_freq_days, text_periods, button_prophet, text_debug)
+# Create map of Africa
+africa_map = africa_map_figure(africa_map_cds, map_select_box_cds, data='value',
+        title="Color map of accumulated reported events in selected time period",
+        text_font_size = "18px",
+        color_mapper_type = color_mapper_type,
+        plot_dim = plot_dim)
 
-# Building the overall plot:
-p_with_legend = column(children=[p, legend], sizing_mode='fixed')
-fig_africa = row(p_with_legend, column(children=[widgets_dataset, widgets_prophet]))
+# Add colormap legend
+colormap_legend = africa_map_add_legend(palette, plot_dim)
+
+# Building the overall plot
+map_and_colormap_legend = column(children=[africa_map, colormap_legend], sizing_mode='fixed')
+fig_africa = row(map_and_colormap_legend, column(children=[widgets_dataset, widgets_prophet]))
 fig_prophet = figure(x_axis_type='datetime', title="Result of last Prophet Time Series model",
                     plot_height = 600, plot_width = 1100)
 fig_prophet.xaxis[0].axis_label = 'Time'
@@ -392,6 +393,7 @@ fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, 
 fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
 fig_prophet.scatter('x', 'y', legend='Validation data', source=prophet_cds_y_validation, color='red')
 
-update_datasources()
+# Populate time window data sources
+update_time_window_datasources()
 
 curdoc().add_root(column(fig_africa, fig_prophet))
