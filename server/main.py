@@ -202,6 +202,9 @@ def prophet_to_plot(forecast, df_train, df_val):
     prophet_b_band.data['y'] = np.append(lowerband, upperband[::-1])
 
 
+def get_newest_date_in_db_text():
+    return "<b>Newest event in database is {}</b>".format(df_full['event_date'].max().strftime("%Y-%m-%d"))
+
 def get_prophet_debug_text():
     return "Status: Coordinates {}, {}, {}, {}".format(
         slider_x1.value, slider_y1.value,
@@ -216,7 +219,7 @@ def get_end_index():
     return val
 
 def get_period_text():
-    log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
+    #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
     return "<table><tr><td>Start of month:</td><td>{}</td></tr><tr><td>End of month (including):</td><td>{}</td></tr></table>".format(
         df_piv.columns[get_start_index()].strftime("%Y-%m"),
         df_piv.columns[get_end_index()].strftime("%Y-%m"))
@@ -369,7 +372,8 @@ def button_callback():
         text_debug.text = 'Prophet error: {}'.format(str(e))
 
 button_prophet.on_click(button_callback)
-text_debug = Div(text=get_prophet_debug_text())
+
+text_debug = Div(text=get_newest_date_in_db_text())
 
 widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log, slider_window_size,
                     text_reg_changepoint, text_reg_season, slider_freq_days, text_periods, button_prophet, text_debug)
