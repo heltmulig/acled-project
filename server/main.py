@@ -134,7 +134,10 @@ def africa_map_add_legend(palette, plot_dim):
 
     tick_min = Text(x=width/2, y=0, text=['0'])
     legend.add_glyph(tick_min)
+    text_log = Text(x=width*3, y=0, text=['Logarithmic scale'])
+    legend.add_glyph(text_log)
     tick_max = Text(x=width*(len(palette)+0.5), y=0, text='tick_max')
+
     legend.add_glyph(colormap_legend_cds, tick_max)
 
     return legend
@@ -217,7 +220,7 @@ def get_start_index():
     return max(0, slider_et.value - slider_ws.value - 1)
 
 def get_end_index():
-    return min(number_of_months, slider_et.value-1)
+    return min(number_of_months, slider_et.value - 1)
 
 def get_period_text():
     #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
