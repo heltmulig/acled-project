@@ -1,1 +1,1 @@
-bokeh serve --log-level debug server/
+bokeh serve server/
