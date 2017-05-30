@@ -16,8 +16,8 @@ from bokeh.layouts import column, row, widgetbox
 from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, Range1d, Plot, Text
 from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider
 from bokeh.models.glyphs import Rect
-from bokeh.palettes import OrRd9 as palette
-palette.reverse()
+from bokeh.palettes import OrRd9 as palette; palette.reverse()
+from bokeh.events import Press, Tap, MouseMove
 
 from presets import presets as selected_presets
 from presets import names as selected_presets_names
@@ -87,13 +87,9 @@ prophet_cds_bband_uncertainty = ColumnDataSource(dict(x=[], y=[]))
      |           |       (3) = (x0,y0)
   (3) ----------- (2)
 '''
-x_min = -18
-y_max = 38
-y_min = -36
-x_max = 52
-
-x_range = [16,35]
-y_range = [-15,10]
+x_min, x_max = -18, 52
+y_min, y_max = -36, 38
+x_range, y_range = [16,35], [-15,10]
 
 map_select_box_cds = ColumnDataSource(
            dict(x=[[x_range[0], x_range[1], x_range[1], x_range[0]]],
@@ -187,7 +183,7 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
     return fig
 
 
-def prophet_to_plot(forecast, df_train, df_test):
+def update_prophet_datasource(forecast, df_train, df_test):
     """Input to main.py:
 
     forecast: Data from trained prophet model
@@ -352,9 +348,9 @@ def button_run_prophet_callback():
     text_status.text = 'Running Prophet ...'
     try:
         start_time = datetime.now()
-        prophet_to_plot(*run_prophet_prediction(
-                            prophet_preprocessing_params, reg_changepoint, reg_season,
-                            periods=periods, freq=slider_freq_days.value))
+        update_prophet_datasource(*run_prophet_prediction(
+                        prophet_preprocessing_params, reg_changepoint, reg_season,
+                        periods=periods, freq=slider_freq_days.value))
         end_time = datetime.now()
         text_status.text = 'Prophet completed in {:d} seconds'.format((end_time - start_time).seconds)
     except KeyError as e:
@@ -381,22 +377,25 @@ africa_map = africa_map_figure(africa_map_cds, map_select_box_cds, data='value',
 # Add colormap legend
 colormap_legend = africa_map_add_legend(palette, plot_dim)
 
-# Building the overall plot
+import pdb; pdb.set_trace()
 map_and_colormap_legend = column(children=[africa_map, colormap_legend], sizing_mode='fixed')
-fig_africa = row(map_and_colormap_legend, column(children=[widgets_dataset, widgets_prophet]))
-fig_prophet = figure(x_axis_type='datetime', title="Result of last Prophet Time Series model",
+fig_map_and_controls = row(map_and_colormap_legend, column(children=[widgets_dataset, widgets_prophet]))
+
+
+# Figure: Last result of Prophet model
+fig_prophet_result = figure(x_axis_type='datetime', title="Result of last Prophet Time Series model",
                     plot_height = 600, plot_width = 1100)
-fig_prophet.xaxis[0].axis_label = 'Time'
-fig_prophet.yaxis[0].axis_label = '{} in time window'.format(variable.capitalize())
-fig_prophet.title.text_font_size = "18px"
-fig_prophet.grid.grid_line_alpha = 0.7
-fig_prophet.x_range.range_padding = 0
-fig_prophet.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
-fig_prophet.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, line_width=2, line_alpha=0.6)
-fig_prophet.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
-fig_prophet.scatter('x', 'y', legend='Test data', source=prophet_cds_y_test, color='red')
+fig_prophet_result.xaxis[0].axis_label = 'Time'
+fig_prophet_result.yaxis[0].axis_label = '{} in time window'.format(variable.capitalize())
+fig_prophet_result.title.text_font_size = "18px"
+fig_prophet_result.grid.grid_line_alpha = 0.7
+fig_prophet_result.x_range.range_padding = 0
+fig_prophet_result.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
+fig_prophet_result.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, line_width=2, line_alpha=0.6)
+fig_prophet_result.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
+fig_prophet_result.scatter('x', 'y', legend='Test data', source=prophet_cds_y_test, color='red')
 
 # Populate time window data sources
 update_time_window_datasources()
 
-curdoc().add_root(column(fig_africa, fig_prophet))
+curdoc().add_root(column(fig_map_and_controls, fig_prophet_result))
