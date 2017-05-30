@@ -138,6 +138,37 @@ def africa_map_add_legend(palette, plot_dim):
 
     return legend
 
+# Events: Area selection box
+selectmode = False
+def update_box_coords():
+    map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
+    map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
+
+def select_box_event_tap(event):
+    global selectmode
+    selectmode = not selectmode
+    print("TAP: Selectmode now: ",selectmode)
+    if selectmode:
+        print("Start selectmode!")
+        #tl = [event.x, event.y]
+        #br = [event.x, event.y]
+        x_range[0], y_range[0] = event.x, event.y
+        x_range[1], y_range[1] = event.x, event.y
+        update_box_coords()
+    else:
+        print("Stop selectmode!")
+        x_range[0], x_range[1] = min(x_range), max(x_range)
+        y_range[0], y_range[1] = min(y_range), max(y_range)
+        print(x_range, y_range)
+
+def select_box_event_mousemove(event):
+    global selectmode
+    if selectmode:
+        x_range[1] = min(x_max, max(x_min, event.x))
+        y_range[1] = min(y_max, max(y_min, event.y))
+        update_box_coords()
+        text_status.text = get_prophet_debug_text()
+
 
 def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
                     text_font_size=None, color_mapper_type='log', plot_dim=700):
@@ -166,6 +197,10 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
     fig.yaxis[0].axis_label = 'Latitude'
     if text_font_size is not None:
         fig.title.text_font_size = text_font_size
+
+    # Add event callbacks for selection box
+    fig.on_event(Tap, select_box_event_tap)
+    fig.on_event(MouseMove, select_box_event_mousemove)
 
     contour = fig.patches('x', 'y', source=bokeh_cds,
                         fill_color={'field': data, 'transform': color_mapper},
@@ -208,9 +243,8 @@ def get_newest_date_in_db_text():
         df_full['event_date'].max().strftime("%Y-%m-%d"))
 
 def get_prophet_debug_text():
-    return "Status: Coordinates {}, {}, {}, {}".format(
-        slider_x1.value, slider_y1.value,
-        slider_x2.value, slider_y2.value)
+    return "Selected area: ({:.1f},{:.1f}), ({:.1f},{:.1f})".format(
+        x_range[0], y_range[0], x_range[1], y_range[1])
 
 def get_start_index():
     return max(0, slider_et.value - slider_ws.value - 1)
@@ -242,7 +276,7 @@ def slider_ws_callback(attrname, old, new):
     """Months to accumulate"""
     update_time_window_datasources()
 
-text_dataset = Div(text='<h3>Area and time parameters</h3>')
+text_dataset = Div(text='<h3>Area and time parameters</h3><p><b>Select area on map:</b> Tap, move, tap</p>')
 
 # Drop-down list: Presets
 select_preset = Select(title='Presets', value='None',
@@ -254,12 +288,17 @@ def select_preset_callback(attr, old, new):
         return
     slider_et.value = selected_presets[i]['current_month']
     slider_ws.value = selected_presets[i]['acc_months']
-    slider_x1.value = x_min; slider_x2.value = x_max
-    slider_y1.value = y_min; slider_y2.value = y_max
-    slider_x1.value = selected_presets[i]['selected_area'][0]  # X-Left
-    slider_x2.value = selected_presets[i]['selected_area'][1]  # X-Right
-    slider_y1.value = selected_presets[i]['selected_area'][2]  # Y-lower
-    slider_y2.value = selected_presets[i]['selected_area'][3]  # Y-upper
+    #slider_x1.value = x_min; slider_x2.value = x_max
+    #slider_y1.value = y_min; slider_y2.value = y_max
+    #slider_x1.value = selected_presets[i]['selected_area'][0]  # X-Left
+    #slider_x2.value = selected_presets[i]['selected_area'][1]  # X-Right
+    #slider_y1.value = selected_presets[i]['selected_area'][2]  # Y-lower
+    #slider_y2.value = selected_presets[i]['selected_area'][3]  # Y-upper
+    x_range[0] = selected_presets[i]['selected_area'][0]
+    x_range[1] = selected_presets[i]['selected_area'][1]
+    y_range[0] = selected_presets[i]['selected_area'][2]
+    y_range[1] = selected_presets[i]['selected_area'][3]
+    update_box_coords()
     checkbox_log_scale.active = [0] if selected_presets[i]['log_of_y'] else []
     slider_window_size.value = selected_presets[i]['time_window']
     text_reg_changepoint.value = str(selected_presets[i]['reg_changepoint'])
@@ -282,6 +321,7 @@ slider_ws.on_change('value', slider_ws_callback)
 # Text: Start month / End month
 text_period = Div(text=get_period_text())
 
+'''
 # Sliders: Map box selection
 slider_x1 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][0], step=0.1, title="X-left")
 slider_y1 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][2], step=0.1, title="Y-lower")
@@ -302,10 +342,10 @@ slider_x1.on_change('value', slider_box_selection_callback)
 slider_y1.on_change('value', slider_box_selection_callback)
 slider_x2.on_change('value', slider_box_selection_callback)
 slider_y2.on_change('value', slider_box_selection_callback)
-
+'''
 # Create widgetbox of parameters
 widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws,
-        text_period, slider_x1, slider_x2, slider_y2, slider_y1)
+        text_period)#, slider_x1, slider_x2, slider_y2, slider_y1)
 
 
 # Prophet parameters
@@ -323,7 +363,8 @@ text_periods = TextInput(value='1', title='Number of periods to predict (integer
 button_run_prophet = Button(label="Run Prohpet!")
 def button_run_prophet_callback():
     global x_range, y_range
-    log.debug("***** PROPHET PREDICT! ***** (start_month={}, end_month{})".format(
+    log.debug("***** PROPHET PREDICT! ***** (x_range={},yrange={}, start={},end={})".format(
+        x_range, y_range,
         df_piv.columns[get_start_index()].strftime("%Y-%m"),
         df_piv.columns[get_end_index()].strftime("%Y-%m")))
     try:
@@ -348,9 +389,10 @@ def button_run_prophet_callback():
     text_status.text = 'Running Prophet ...'
     try:
         start_time = datetime.now()
-        update_prophet_datasource(*run_prophet_prediction(
+        pred = run_prophet_prediction(
                         prophet_preprocessing_params, reg_changepoint, reg_season,
-                        periods=periods, freq=slider_freq_days.value))
+                        periods=periods, freq=slider_freq_days.value)
+        update_prophet_datasource(*pred)
         end_time = datetime.now()
         text_status.text = 'Prophet completed in {:d} seconds'.format((end_time - start_time).seconds)
     except KeyError as e:
@@ -377,7 +419,6 @@ africa_map = africa_map_figure(africa_map_cds, map_select_box_cds, data='value',
 # Add colormap legend
 colormap_legend = africa_map_add_legend(palette, plot_dim)
 
-import pdb; pdb.set_trace()
 map_and_colormap_legend = column(children=[africa_map, colormap_legend], sizing_mode='fixed')
 fig_map_and_controls = row(map_and_colormap_legend, column(children=[widgets_dataset, widgets_prophet]))
 
