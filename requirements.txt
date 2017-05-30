@@ -1,0 +1,9 @@
+pandas>=0.20.1
+numpy
+fbprophet>=0.1.1
+pymongo
+geopandas>=0.2.1
+bokeh>=0.12.5
+flexx
+pytest
+mock
