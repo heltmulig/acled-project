@@ -365,7 +365,6 @@ text_periods = TextInput(value='1', title='Number of periods to predict (integer
 button_run_prophet = Button(label="Run Prohpet!")
 def button_run_prophet_callback():
     """Callback to prepare and run Prohpet."""
-    global x_range, y_range
 
     log.debug("***PROPHET*PREDICT*** (x_range={},yrange={}, start={},end={})".format(
         x_range, y_range,
