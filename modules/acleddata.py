@@ -1,12 +1,18 @@
 """
-STK-INF4000 ML-project ACLED dataset module.
+Module to synchronize the ACLED API dataset with a given mongodb database.
+
+Note: First run requires console interaction when downloading database.
+Please do:
+
+    >>> import acleddata
+    >>> db = acleddata.ACLED(mongodb_host='localhost', mongodb_port=27017)
+
 """
 
 import datetime
 import time
 import io
 import sys
-import os.path
 
 import logging
 import numpy
@@ -15,24 +21,18 @@ import pymongo
 import requests
 
 
-# Local file cache
-DATADIR = 'data/'
-
-
 # Utility function
 def ymd(datestr):
     """
     Utility function to convert a string-formatted date to a datetime object.
-    Used when importing date fields from csv to mongodb.
+    Used when importing date fields from API (csv) to mongodb.
     """
     return datetime.datetime.strptime(datestr, "%Y-%m-%d")
 
 
-# ACLED API
-###########
 class ACLED:
     """
-    Class used to provide a consitently updated ACLED dataset.
+    Class to provide a consitently updated ACLED dataset in a mongodb server.
     """
 
     ACLED_COLUMN_DTYPES = {
@@ -40,7 +40,7 @@ class ACLED:
         'gwno'              : numpy.int64,
         'event_id_cnty'     : str,
         'event_id_no_cnty'  : str,
-        'event_date'        : str,              # datetime.datetime
+        'event_date'        : str,
         'year'              : numpy.int64,
         'time_precision'    : numpy.int64,
         'event_type'        : str,
@@ -67,7 +67,14 @@ class ACLED:
     URL_ACLED_READ = 'http://acleddata.com/api/acled/read.csv'
 
     def __init__(self, db_name='acled', collection_name='api',
-                 mongodb_host='127.0.0.1', mongodb_port=27017):
+                 mongodb_host='localhost', mongodb_port=27017):
+        """
+        Args:
+            db_name: Name of mongodb database (default: 'acled')
+            collection_name: Name of collection (default: 'api')
+            mongodb_host: Hostname/ip for mongodb (default: 'localhost')
+            mongodb_port: Port for mongodb server (default: 27017)
+        """
         self.db_name = db_name
         self.collection_name = collection_name
         self.mongodb_host = mongodb_host
@@ -75,21 +82,22 @@ class ACLED:
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.conn = pymongo.MongoClient(mongodb_host, mongodb_port)
-        self.db = self.conn[self.db_name]
-        self.c = self.db[self.collection_name]
+        self._conn = pymongo.MongoClient(mongodb_host, mongodb_port)
+        self._db = self._conn[self.db_name]
+        self._coll = self._db[self.collection_name]
 
         self.acled_download_database()
+        self._mongodb_warn_on_old_dataset()
 
 
     def acled_download_database(self):
         """
         Download database from ACLED server if it does not exist or is empty.
         """
-        if self.db_name not in self.conn.database_names() \
-            or self.collection_name not in self.db.collection_names() \
-            or self.c.count() == 0:
-            print("Database '%s' does not exist or is empty." % self.db_name)
+        if self.db_name not in self._conn.database_names() \
+            or self.collection_name not in self._db.collection_names() \
+            or self._coll.count() == 0:
+            print("Database '{}'' does not exist or is empty.".format(self.db_name))
             ans = input("Grab it from ACLED server (Y/N)? ")
             if ans.upper() == 'Y':
                 self.acled_to_mongodb("1995-01-01")
@@ -120,7 +128,7 @@ class ACLED:
 
         # ACLED API returns 'No data has been found' at end of data
         while True:
-            time.sleep(2)           # treat ACLED server gently
+            time.sleep(2)       # be gentle - 2 seconds between http requests
             print('.', end='')
             sys.stdout.flush()
             result = self.acled_api_request(query + '&page=%i' % page)
@@ -142,17 +150,6 @@ class ACLED:
         """
         print(datetime.datetime.now(), 'Apply str->datetime on event_date...')
         pandas_df['event_date'] = pandas_df['event_date'].apply(ymd)
-
-
-    def append_geo_points(self, pandas_df):
-        """
-        Function to append a new column of geo_points.
-        """
-        from shapely.geometry import Point
-        df = pandas_df.loc[:, ['latitude','longitude']].apply(
-            lambda df: Point(df.latitude, df.longitude),
-            axis=1)
-        pandas_df.loc[:, 'geo_point'] = df
 
 
     def get_acled_data_gt_date(self, date):
@@ -182,7 +179,6 @@ class ACLED:
         """
         Find duplicate data_id entries in pandas DataFrame.
         """
-        # keep=False => Mark all duplicates as True in returned pandas.Series
         duplicates = pandas_df['data_id'].duplicated(keep=False)
         dup_indexes = [index for index, duplicate in enumerate(duplicates) if duplicate is True]
         if dup_indexes:
@@ -223,14 +219,7 @@ class ACLED:
         Returns:
             PyMongo.InsertManyResult of operation
         """
-        # if collection is empty, after this
-        # Index fields: ['_id_', 'data_id_1']  <-- why '_1' !?
-        # if not 'data_id' in self.c.index_information():
-        #   self.c.create_index('data_id',unique=True)
-        result = self.c.insert_many(pandas_df.to_dict('records'))
-        #print("Index fields:",sorted(list(self.c.index_information())))
-
-        return result
+        return self._coll.insert_many(pandas_df.to_dict('records'))
 
 
     def csv_to_mongodb(self, csvblob, sep=','):
@@ -243,6 +232,10 @@ class ACLED:
 
         Returns:
             True if successful
+
+        Example:
+            with open('acled.csv', 'r') as csvfile:
+                ds_acled.csv_to_mongodb(csvfile.read())
         """
         print(datetime.datetime.now(), "Make DataFrame...")
         self._csv_assert_header_consistency(csvblob)
@@ -253,12 +246,11 @@ class ACLED:
         f.close()
 
         self._remove_duplicates(df)
-        # dup_indexes = self._get_indexes_of_duplicates(df)
         self._str_to_datetime(df)
 
         result = self.pandas_df_to_mongodb(df)
         print(len(result.inserted_ids), "records inserted to mongodb,",
-              len(csvblob.splitlines()), "lines in csv. (Investigate difference)")
+              len(csvblob.splitlines()), "lines in csv.")
 
         return self.pandas_df_to_mongodb(df)
 
@@ -270,8 +262,8 @@ class ACLED:
         ACLED dataset, use "1995-01-01" as datestr.
 
         Arg:
-            datestr (str): Find entries newer than this date.
-                Date format: %Y-%m-%d (YYYY-MM-DD)
+            datestr (str):     Find entries newer than this date.
+                Date format:   '%Y-%m-%d' (YYYY-MM-DD)
             to_csv_file (str): Filename for a csv copy of the retrieved data.
 
         Returns:
@@ -281,7 +273,8 @@ class ACLED:
         date = ymd(datestr)
         time_delta_years = (datetime.datetime.today() - date).days / float(365)
 
-        if time_delta_years > 2:  # warn if more than two years of new data
+        # warn if more than two years of new data
+        if time_delta_years > 2:
             print('Warning! Query ACLED server for all data newer than date', datestr,
                   'could cause heavy load on the server.')
             answer = input('Continue (Y/N)? ')
@@ -291,10 +284,10 @@ class ACLED:
 
         print(datetime.datetime.now(), "Querying ACLED API (one dot is 500 rows) ", end='')
 
-        csvblob = self.get_acled_data_gt_date(datestr)  # gte?
+        csvblob = self.get_acled_data_gt_date(datestr)
 
-        if csvblob is None:     # no new data received
-                return False
+        if csvblob is None:
+            return False
 
         if to_csv_file is not None:
             open(to_csv_file, "w").write(csvblob)
@@ -303,11 +296,23 @@ class ACLED:
         return self.csv_to_mongodb(csvblob)
 
 
+    def _mongodb_warn_on_old_dataset(self):
+        age_days = self._mongodb_get_dataset_age()
+        if age_days > 30:
+            print("UpdateWarning: ACLED mongodb dataset is {} days old ".format(age_days))
+
+
+    def _mongodb_get_dataset_age(self):
+        """Returns age of the mongodb dataset in days."""
+        timestamp = self.mongodb_get_newest_event_date()
+        return (datetime.datetime.today() - timestamp).days
+
+
     def mongodb_get_newest_event_date(self):
         """
         Returns the newest event_date in the mongodb database.
         """
-        data = self.c.find().sort([('event_date', pymongo.DESCENDING)]).limit(1)
+        data = self._coll.find().sort([('event_date', pymongo.DESCENDING)]).limit(1)
         if data.count() == 0:
             return None
         return data.next()['event_date']
@@ -316,7 +321,7 @@ class ACLED:
     def mongodb_update_database(self, to_csv_file=None, force=False):
         """
         Query the mongodb server to find the most recent entry and query
-        ACLED API server for new data if data is older than 30 days.
+        ACLED API server for new data if data is older than 7 days.
 
         Args:
             to_csv_file (str):  Filename to write new csv data to
@@ -328,10 +333,8 @@ class ACLED:
 
         delta_days = (datetime.datetime.today() - date).days
 
-        if force or delta_days > 30:
+        if force or delta_days > 7:
             datestr = date.strftime('%Y-%m-%d')
-            # TODO:
-            # Ask for one day prior to datestr (due to $gt greater than)?
             self.acled_to_mongodb(datestr, to_csv_file)
 
 
@@ -339,25 +342,37 @@ class ACLED:
         """
         Returns the entire ACLED mongodb collection as pandas DataFrame.
         """
-        return pandas.DataFrame(list(self.c.find()))
+        return pandas.DataFrame(list(self._coll.find()))
 
 
     def mongodb_get_query(self, query):
         """
         Executes a standard mongodb find()-query and returns the result
         as a pandas DataFrame.
+
+        Args:
+            query: Valid mongodb query string
+
+        Example:
+            starttime = datetime.datetime(2017, 1, 7)
+            endtime = datetime.datetime(2017, 1, 10)
+            query = {'event_date': {'$gt':starttime, '$lt':endtime}}
+            df = ds_acled.mongodb_get_query(query)
         """
-        return pandas.DataFrame(list(self.c.find(query)))
+        return pandas.DataFrame(list(self._coll.find(query)))
 
 
-    def mongodb_delete_many(self, del_filter=None):
+    def mongodb_delete_many_after_date(self, datestr):
         """
-        Performs a mongodb delete-many()-operation on the ACLED collection.
+        Performs a mongodb delete-many()-operation on the ACLED collection
+        of enteies newer than the given date string.
+
+        Args:
+            datestr (str): Specify date in '%Y-%m-%d' format
         """
-        if not del_filter:
-            starttime = datetime.datetime.strptime('2017-02-01', '%Y-%m-%d')
-            del_filter = {'event_date': {'$gt':starttime}}
-        result = self.c.delete_many(del_filter)
+        starttime = datetime.datetime.strptime(datestr, '%Y-%m-%d')
+        del_filter = {'event_date': {'$gt':starttime}}
+        result = self._coll.delete_many(del_filter)
         print('Deleted', result.deleted_count, 'entries.')
 
 
@@ -365,20 +380,4 @@ class ACLED:
         """
         Deletes the ACLED collection in mongodb database.
         """
-        self.c.drop()
-
-
-if __name__ == "__main__":
-    ds_acled = ACLED()
-    #ds_acled.mongodb_delete_many()
-    #ds_acled.mongodb_delete_collection()
-    #ds_acled.csv_to_mongodb(open('acled.entire.csv','r').read())
-    #ds_acled.acled_to_mongodb('2017-01-15')
-    ds_acled.mongodb_update_database()
-    #starttime = datetime.datetime(2017, 1, 7)
-    #endtime = datetime.datetime(2017, 1, 10)
-    #query = {'event_date': {'$gt':starttime,'$lt':endtime}}
-    #df = ds_acled.mongodb_get_query(query)
-    df = ds_acled.mongodb_get_entire_database()
-    print(df.columns)
-    print(datetime.datetime.now(), "Done.")
+        self._coll.drop()
