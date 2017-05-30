@@ -1,11 +1,11 @@
-"""Presets for ACLED Bokeh App."""
+"""Example presets for ACLED Data Science Laboratory."""
 
 presets = [
 {
     'name': "Somalia 2012-2014",
     'current_month': 208,
     'acc_months': 29,
-    'selected_area' : [41, 51.5, -2, 12],   # x1, x2, y1, y2
+    'selected_area' : [41, 51.5, -2, 12],   # order: x1, x2, y1, y2
     'log_of_y': False,
     'time_window': 7,
     'reg_changepoint': 0.05,
