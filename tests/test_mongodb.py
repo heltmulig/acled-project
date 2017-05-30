@@ -1,7 +1,10 @@
 """Just a few unittests to show the concept. TODO: Add more.
-Manually execute from project root:
+These tests require that the mongodb database exists and is
+populated with the ACLED dataset.
 
-   pytest tests/
+To run tests, manually execute from project root:
+
+   $ pytest tests/
 
 """
 import sys
