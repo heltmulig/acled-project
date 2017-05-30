@@ -5,20 +5,21 @@ This is a bokeh server application. It can be launched with
     bokeh serve --log-level debug /path/to/server/
 """
 
+from datetime import datetime
+# Add parent folder modules/ to sys.path
+import sys
+sys.path.insert(0, 'modules')
 
 from bokeh.events import MouseMove, Tap
 from bokeh.layouts import column, row, widgetbox
-from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, Range1d, Plot, Text
+from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper, LogColorMapper, Range1d, Plot, Text
 from bokeh.models.glyphs import Rect
 from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider
 from bokeh.palettes import OrRd9 as palette; palette.reverse()
 from bokeh.plotting import curdoc, figure
 from bokeh.settings import logging as log
 
-from datetime import datetime
 import numpy as np
-# Add parent folder modules/ to sys.path
-import sys; sys.path.insert(0, 'modules')
 
 from presets import presets as selected_presets
 from presets import names as selected_presets_names
@@ -34,7 +35,7 @@ log.debug("STARTED SESSION " + app_name)
 curdoc().title = app_name
 
 # Set dimension of Africa map and color mapper function
-plot_dim = 850
+africa_map_plot_width = 850
 color_mapper_type = 'log'
 
 # Predict events or fatailities (experimental Prohpet value)
@@ -95,30 +96,31 @@ x_min, x_max = -18, 52
 y_min, y_max = -36, 38
 x_range, y_range = [16, 35], [-15, 10]
 
-map_select_box_cds = ColumnDataSource(
+map_select_area_cds = ColumnDataSource(
     dict(x=[[x_range[0], x_range[1], x_range[1], x_range[0]]],
          y=[[y_range[1], y_range[1], y_range[0], y_range[0]]],
          name=['map_select']))
 
 
-def africa_map_add_legend(palette, plot_dim):
+def africa_map_add_legend(palette, africa_map_plot_width):
     """This creates the colormap legend under the map of Africa.
 
     Credit:
     Adds glyphs for legend. Based on [1]
 
     References:
-        [1] https://github.com/chdoig/scipy2015-blaze-bokeh/blob/master/1.5%20Glyphs%20-%20Legend%20(solution).ipynb
+        [1] https://github.com/chdoig/scipy2015-blaze-bokeh/blob/master
+            /1.5%20Glyphs%20-%20Legend%20(solution).ipynb
     """
     # Set ranges
-    xdr = Range1d(0, plot_dim)
+    xdr = Range1d(0, africa_map_plot_width)
     ydr = Range1d(0, 60)
 
     # Create plot
     legend = Plot(
         x_range=xdr,
         y_range=ydr,
-        plot_width=plot_dim,
+        plot_width=africa_map_plot_width,
         plot_height=60,
         min_border=0,
         toolbar_location=None,
@@ -149,8 +151,8 @@ def africa_map_add_legend(palette, plot_dim):
 # Area selection box
 area_select_active = False
 def update_box_coords():
-    map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
-    map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
+    map_select_area_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
+    map_select_area_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
 
 def select_box_event_tap(event):
     global area_select_active
@@ -172,30 +174,30 @@ def select_box_event_mousemove(event):
         text_status.text = get_selected_area_coordinates_text()
 
 
-def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
-                      text_font_size=None, color_mapper_type='log', plot_dim=700):
+def africa_map_figure(africa_map_cds, map_select_area_cds, data='value',
+                      title='', text_font_size=None,
+                      africa_map_plot_width=700):
     """Create plot of Africa map with contours, tools and callbacks.
 
     Input:
-        bokeh_cds - ColumnDataSource including columns
-        'name': Country name
-        'x' and 'y' that cointain exterior coordinates of the contries contours.
-        One column with values used for colouring (see 'data')
-
+        africa_map_cds: Africa map data source including columns
+            'x' and 'y' that cointain exterior coordinates of the contries contours.
+            One column with values used for colouring (see 'data')
+            'name': Country name
+        map_select_area_cds:  Area selection box data source
         data: String containing name of column in 'df' to fill contours
-
+        title: Title text of figure
+        text_font_size: Title text font size
     Returns:
-        Figure
+        bokeh figure
     """
     if color_mapper_type == 'log':
         color_mapper = LogColorMapper(palette=palette)
     elif color_mapper_type == 'linear':
         color_mapper = LinearColorMapper(palette=palette)
 
-    TOOLS = "pan,wheel_zoom,reset,save"
-
-    fig = figure(title=title, tools=TOOLS,
-                 plot_width=plot_dim, plot_height=plot_dim,
+    fig = figure(title=title, tools='pan,wheel_zoom,reset,save',
+                 plot_width=africa_map_plot_width, plot_height=africa_map_plot_width,
                  active_drag=None)
     fig.xaxis[0].axis_label = 'Longitude'
     fig.yaxis[0].axis_label = 'Latitude'
@@ -206,15 +208,15 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
     fig.on_event(Tap, select_box_event_tap)
     fig.on_event(MouseMove, select_box_event_mousemove)
 
-    contour = fig.patches('x', 'y', source=bokeh_cds,
+    contour = fig.patches('x', 'y', source=africa_map_cds,
                           fill_color={'field': data, 'transform': color_mapper},
                           fill_alpha=1, line_color="black", line_width=0.3)
 
     hover = HoverTool(renderers=[contour])
     hover.tooltips = [("Country", "@name"), (data.capitalize(), "@"+data)]
 
-    pglyph = fig.patches('x', 'y', source=map_select_box_cds, color=["navy"],
-                         alpha=[0.3], line_width=2)
+    fig.patches('x', 'y', source=map_select_area_cds, color=["navy"],
+                alpha=[0.3], line_width=2)
 
     fig.add_tools(hover)
 
@@ -262,7 +264,6 @@ def get_end_index():
     return min(number_of_months, slider_et.value - 1)
 
 def get_period_text():
-    #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
     return "<table><tr><td>Start month:</td><td>{}</td></tr>" \
            "<tr><td>End month:</td><td>{}</td></tr></table>".format(
                df_piv.columns[get_start_index()].strftime("%Y-%m"),
@@ -285,7 +286,8 @@ def slider_ws_callback(attrname, old, new):
     """Months to accumulate"""
     update_time_window_datasources()
 
-text_dataset = Div(text='<h3>Area and time parameters</h3><p><b>Select area on map:</b> Tap, move, tap</p>')
+text_dataset = Div(
+    text='<h3>Area and time parameters</h3><p><b>Select area on map:</b> Tap, move, tap</p>')
 
 # Drop-down list: Presets
 select_preset = Select(title='Presets', value='',
@@ -376,10 +378,10 @@ def button_run_prophet_callback():
         end_time = datetime.now()
         text_status.text = 'Prophet completed in {:d} seconds'.format(
             (end_time - start_time).seconds)
-    except KeyError as e:
-        text_status.text = 'Prophet error: No events within selection box {}'.format(str(e))
-    except Exception as e:
-        text_status.text = 'Prophet error: {} (likely insufficient data)'.format(str(e))
+    except KeyError as ex:
+        text_status.text = 'Prophet error: No events within selection box {}'.format(str(ex))
+    except Exception as ex:
+        text_status.text = 'Prophet error: {} (likely insufficient data)'.format(str(ex))
 button_run_prophet.on_click(button_run_prophet_callback)
 
 # Text: Status to display newest date in
@@ -392,15 +394,14 @@ widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log_scale,
 
 # Create map of Africa
 africa_map_figure_title = "Color map of accumulated reported events in selected time period"
-africa_map = africa_map_figure(africa_map_cds, map_select_box_cds,
+africa_map = africa_map_figure(africa_map_cds, map_select_area_cds,
                                data='value',
                                title=africa_map_figure_title,
                                text_font_size="18px",
-                               color_mapper_type=color_mapper_type,
-                               plot_dim=plot_dim)
+                               africa_map_plot_width=africa_map_plot_width)
 
 # Add colormap legend
-colormap_legend = africa_map_add_legend(palette, plot_dim)
+colormap_legend = africa_map_add_legend(palette, africa_map_plot_width)
 
 map_and_colormap_legend = column(children=[africa_map, colormap_legend],
                                  sizing_mode='fixed')
@@ -417,8 +418,10 @@ fig_prophet_result.yaxis[0].axis_label = '{} in time window'.format(variable.cap
 fig_prophet_result.title.text_font_size = "18px"
 fig_prophet_result.grid.grid_line_alpha = 0.7
 fig_prophet_result.x_range.range_padding = 0
-fig_prophet_result.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty, color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
-fig_prophet_result.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit, line_width=2, line_alpha=0.6)
+fig_prophet_result.patch('x', 'y', legend='Uncertainty', source=prophet_cds_bband_uncertainty,
+                         color='#7570B3', fill_alpha=0.1, line_alpha=0.3)
+fig_prophet_result.line('x', 'y', legend='Fitted model', source=prophet_cds_y_hat_fit,
+                        line_width=2, line_alpha=0.6)
 fig_prophet_result.scatter('x', 'y', legend='Training data', source=prophet_cds_y_train)
 fig_prophet_result.scatter('x', 'y', legend='Test data', source=prophet_cds_y_test, color='red')
 
