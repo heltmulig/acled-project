@@ -299,7 +299,7 @@ class ACLED:
     def _mongodb_warn_on_old_dataset(self):
         age_days = self._mongodb_get_dataset_age()
         if age_days > 30:
-            print("UpdateWarning: ACLED mongodb dataset is {} days old ".format(age_days))
+            print('UpdateWarning: ACLED mongodb dataset is {} days old.'.format(age_days))
 
 
     def _mongodb_get_dataset_age(self):
