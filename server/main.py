@@ -1,23 +1,24 @@
-"""ACLED Science Laboratory
+"""ACLED Data Science Laboratory
 
-A Bokeh server application."""
+This is a bokeh server application. It can be launched with
 
-# Adding modules folder to sys.path:
-import sys
-sys.path.insert(0, 'modules')
+    bokeh serve --log-level debug /path/to/server/
+"""
 
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
 
-from bokeh.settings import logging as log
-from bokeh.plotting import curdoc, figure
+from bokeh.events import MouseMove, Tap
 from bokeh.layouts import column, row, widgetbox
 from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, Range1d, Plot, Text
-from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider
 from bokeh.models.glyphs import Rect
+from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider
 from bokeh.palettes import OrRd9 as palette; palette.reverse()
-from bokeh.events import Press, Tap, MouseMove
+from bokeh.plotting import curdoc, figure
+from bokeh.settings import logging as log
+
+from datetime import datetime
+import numpy as np
+# Add parent folder modules/ to sys.path
+import sys; sys.path.insert(0, 'modules')
 
 from presets import presets as selected_presets
 from presets import names as selected_presets_names
@@ -25,14 +26,16 @@ from ProphetScripts import run_prophet_prediction
 from ImportShapefile import ImportShapefile
 from acled_preprocess import acled_preprocess
 
-# Set app title
+
 app_name = "ACLED Data Science Laboratory"
 log.debug("STARTED SESSION " + app_name)
+
+# Set app title
 curdoc().title = app_name
 
-# Set dimension of Africa map, and mapper function
+# Set dimension of Africa map and color mapper function
 plot_dim = 850
-color_mapper_type='log'
+color_mapper_type = 'log'
 
 # Predict events or fatailities (experimental Prohpet value)
 variable = 'events'
@@ -49,9 +52,9 @@ link_ESRI_shp = 'data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp'
 gpd_df = ImportShapefile(link_ESRI_shp).get_df()
 df_full, gpd_df = acled_preprocess(df_full, gpd_df)
 df_piv = df_full.pivot_table(index='event_date',
-                              columns='country',
-                              values='fatalities',
-                              aggfunc=pivot_aggr_fn)
+                             columns='country',
+                             values='fatalities',
+                             aggfunc=pivot_aggr_fn)
 
 # Aggregate over time window
 time_window = '1M'
@@ -73,7 +76,8 @@ gpd_df.set_value('Angola', 'y', gpd_df.loc['Angola', 'y'][:66])
 
 # Define data sources
 africa_map_cds = ColumnDataSource(gpd_df.sort_index())
-colormap_legend_cds = ColumnDataSource(dict(tick_max=[ '{:.0f}'.format(max(africa_map_cds.data['value'])) ]))
+colormap_legend_cds = ColumnDataSource(dict(tick_max=['{:.0f}'.format(
+    max(africa_map_cds.data['value']))]))
 prophet_cds_y_hat_fit = ColumnDataSource(data=dict(x=[], y=[]))
 prophet_cds_y_train = ColumnDataSource(data=dict(x=[], y=[]))
 prophet_cds_y_test = ColumnDataSource(data=dict(x=[], y=[]))
@@ -89,19 +93,23 @@ prophet_cds_bband_uncertainty = ColumnDataSource(dict(x=[], y=[]))
 '''
 x_min, x_max = -18, 52
 y_min, y_max = -36, 38
-x_range, y_range = [16,35], [-15,10]
+x_range, y_range = [16, 35], [-15, 10]
 
 map_select_box_cds = ColumnDataSource(
-           dict(x=[[x_range[0], x_range[1], x_range[1], x_range[0]]],
-                y=[[y_range[1], y_range[1], y_range[0], y_range[0]]],
-                name=['map_select']))
-
+    dict(x=[[x_range[0], x_range[1], x_range[1], x_range[0]]],
+         y=[[y_range[1], y_range[1], y_range[0], y_range[0]]],
+         name=['map_select']))
 
 
 def africa_map_add_legend(palette, plot_dim):
-    # Adds glyphs for legend. Based on:
-    # https://github.com/chdoig/scipy2015-blaze-bokeh/blob/master/1.5%20Glyphs%20-%20Legend%20(solution).ipynb
+    """This creates the colormap legend under the map of Africa.
 
+    Credit:
+    Adds glyphs for legend. Based on [1]
+
+    References:
+        [1] https://github.com/chdoig/scipy2015-blaze-bokeh/blob/master/1.5%20Glyphs%20-%20Legend%20(solution).ipynb
+    """
     # Set ranges
     xdr = Range1d(0, plot_dim)
     ydr = Range1d(0, 60)
@@ -138,61 +146,57 @@ def africa_map_add_legend(palette, plot_dim):
 
     return legend
 
-# Events: Area selection box
-selectmode = False
+# Area selection box
+area_select_active = False
 def update_box_coords():
     map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
     map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
 
 def select_box_event_tap(event):
-    global selectmode
-    selectmode = not selectmode
-    print("TAP: Selectmode now: ",selectmode)
-    if selectmode:
-        print("Start selectmode!")
-        #tl = [event.x, event.y]
-        #br = [event.x, event.y]
+    global area_select_active
+    area_select_active = not area_select_active
+    if area_select_active:
         x_range[0], y_range[0] = event.x, event.y
         x_range[1], y_range[1] = event.x, event.y
         update_box_coords()
     else:
-        print("Stop selectmode!")
         x_range[0], x_range[1] = min(x_range), max(x_range)
         y_range[0], y_range[1] = min(y_range), max(y_range)
-        print(x_range, y_range)
 
 def select_box_event_mousemove(event):
-    global selectmode
-    if selectmode:
+    global area_select_active
+    if area_select_active:
         x_range[1] = min(x_max, max(x_min, event.x))
         y_range[1] = min(y_max, max(y_min, event.y))
         update_box_coords()
-        text_status.text = get_prophet_debug_text()
+        text_status.text = get_selected_area_coordinates_text()
 
 
 def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map with no title",
-                    text_font_size=None, color_mapper_type='log', plot_dim=700):
-    """ Finalize docstring (TODO)
-    Plotting map contours
+                      text_font_size=None, color_mapper_type='log', plot_dim=700):
+    """Create plot of Africa map with contours, tools and callbacks.
 
     Input:
-    bokeh_cds - ColumnDataSource including columns
+        bokeh_cds - ColumnDataSource including columns
         'name': Country name
         'x' and 'y' that cointain exterior coordinates of the contries contours.
         One column with values used for colouring (see 'data')
 
-    data: String containing name of column in 'df' to fill contours
+        data: String containing name of column in 'df' to fill contours
+
+    Returns:
+        Figure
     """
-    if color_mapper_type=='log':
+    if color_mapper_type == 'log':
         color_mapper = LogColorMapper(palette=palette)
-    elif color_mapper_type=='linear':
+    elif color_mapper_type == 'linear':
         color_mapper = LinearColorMapper(palette=palette)
 
     TOOLS = "pan,wheel_zoom,reset,save"
 
     fig = figure(title=title, tools=TOOLS,
-               plot_width=plot_dim, plot_height=plot_dim,
-               active_drag=None)
+                 plot_width=plot_dim, plot_height=plot_dim,
+                 active_drag=None)
     fig.xaxis[0].axis_label = 'Longitude'
     fig.yaxis[0].axis_label = 'Latitude'
     if text_font_size is not None:
@@ -203,15 +207,14 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
     fig.on_event(MouseMove, select_box_event_mousemove)
 
     contour = fig.patches('x', 'y', source=bokeh_cds,
-                        fill_color={'field': data, 'transform': color_mapper},
-                        fill_alpha=1, line_color="black", line_width=0.3)
+                          fill_color={'field': data, 'transform': color_mapper},
+                          fill_alpha=1, line_color="black", line_width=0.3)
 
     hover = HoverTool(renderers=[contour])
-    hover.tooltips=[("Country", "@name"),
-                    (data.capitalize(), "@"+data)]
+    hover.tooltips = [("Country", "@name"), (data.capitalize(), "@"+data)]
 
     pglyph = fig.patches('x', 'y', source=map_select_box_cds, color=["navy"],
-                       alpha=[0.3], line_width=2)
+                         alpha=[0.3], line_width=2)
 
     fig.add_tools(hover)
 
@@ -219,11 +222,12 @@ def africa_map_figure(bokeh_cds, map_select_box_cds, data='value', title="Map wi
 
 
 def update_prophet_datasource(forecast, df_train, df_test):
-    """Input to main.py:
+    """Push prophet results onto result plot.
 
-    forecast: Data from trained prophet model
-    df_train: Raw data used in training
-    df_test: Raw data for validation (same preprocessing as for df_train)
+    Inputs:
+        forecast: Data from trained prophet model
+        df_train: Raw data used in training
+        df_test: Raw data for validation (same preprocessing as for df_train)
     """
 
     # Define Bollinger Bands.
@@ -231,6 +235,7 @@ def update_prophet_datasource(forecast, df_train, df_test):
     lowerband = forecast['yhat_upper']
     x_data = forecast['ds']
 
+    # Update data sources
     prophet_cds_y_hat_fit.data = dict(x=forecast['ds'], y=forecast['yhat'])
     prophet_cds_y_train.data = dict(x=df_train['ds'], y=df_train['y'])
     prophet_cds_y_test.data = dict(x=df_test['ds'], y=df_test['y'])
@@ -239,25 +244,29 @@ def update_prophet_datasource(forecast, df_train, df_test):
 
 
 def get_newest_date_in_db_text():
+    """Returns information string of the newest event in the database."""
     return "<b>Newest event in database is {}</b>".format(
         df_full['event_date'].max().strftime("%Y-%m-%d"))
 
-def get_prophet_debug_text():
+def get_selected_area_coordinates_text():
+    """Returns information string of the coordinates for the current selected area."""
     return "Selected area: ({:.1f},{:.1f}), ({:.1f},{:.1f})".format(
         x_range[0], y_range[0], x_range[1], y_range[1])
 
 def get_start_index():
+    """Return usable array start index calculated from select time window."""
     return max(0, slider_et.value - slider_ws.value - 1)
 
 def get_end_index():
+    """Return usable array end index calculated from select time window."""
     return min(number_of_months, slider_et.value - 1)
 
 def get_period_text():
     #log.debug('(start_of_period=%d,end_of_period=%d) [%d:%d]' % (get_start_index(), get_end_index(), get_start_index(), get_end_index()+1))
     return "<table><tr><td>Start month:</td><td>{}</td></tr>" \
            "<tr><td>End month:</td><td>{}</td></tr></table>".format(
-            df_piv.columns[get_start_index()].strftime("%Y-%m"),
-            df_piv.columns[get_end_index()].strftime("%Y-%m"))
+               df_piv.columns[get_start_index()].strftime("%Y-%m"),
+               df_piv.columns[get_end_index()].strftime("%Y-%m"))
 
 def update_time_window_datasources():
     """Push new data"""
@@ -279,8 +288,8 @@ def slider_ws_callback(attrname, old, new):
 text_dataset = Div(text='<h3>Area and time parameters</h3><p><b>Select area on map:</b> Tap, move, tap</p>')
 
 # Drop-down list: Presets
-select_preset = Select(title='Presets', value='None',
-                       options=['None'] + selected_presets_names)
+select_preset = Select(title='Presets', value='',
+                       options=[''] + selected_presets_names)
 def select_preset_callback(attr, old, new):
     try:
         i = selected_presets_names.index(new)
@@ -288,16 +297,10 @@ def select_preset_callback(attr, old, new):
         return
     slider_et.value = selected_presets[i]['current_month']
     slider_ws.value = selected_presets[i]['acc_months']
-    #slider_x1.value = x_min; slider_x2.value = x_max
-    #slider_y1.value = y_min; slider_y2.value = y_max
-    #slider_x1.value = selected_presets[i]['selected_area'][0]  # X-Left
-    #slider_x2.value = selected_presets[i]['selected_area'][1]  # X-Right
-    #slider_y1.value = selected_presets[i]['selected_area'][2]  # Y-lower
-    #slider_y2.value = selected_presets[i]['selected_area'][3]  # Y-upper
-    x_range[0] = selected_presets[i]['selected_area'][0]
-    x_range[1] = selected_presets[i]['selected_area'][1]
-    y_range[0] = selected_presets[i]['selected_area'][2]
-    y_range[1] = selected_presets[i]['selected_area'][3]
+    x_range[0] = selected_presets[i]['selected_area'][0]    # X-Left
+    x_range[1] = selected_presets[i]['selected_area'][1]    # X-Right
+    y_range[0] = selected_presets[i]['selected_area'][2]    # Y-lower
+    y_range[1] = selected_presets[i]['selected_area'][3]    # Y-upper
     update_box_coords()
     checkbox_log_scale.active = [0] if selected_presets[i]['log_of_y'] else []
     slider_window_size.value = selected_presets[i]['time_window']
@@ -321,49 +324,26 @@ slider_ws.on_change('value', slider_ws_callback)
 # Text: Start month / End month
 text_period = Div(text=get_period_text())
 
-'''
-# Sliders: Map box selection
-slider_x1 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][0], step=0.1, title="X-left")
-slider_y1 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][2], step=0.1, title="Y-lower")
-slider_x2 = Slider(start=x_min, end=x_max, value=map_select_box_cds.data['x'][0][1], step=0.1, title="X-right")
-slider_y2 = Slider(start=y_min, end=y_max, value=map_select_box_cds.data['y'][0][0], step=0.1, title="Y-upper")
-def slider_box_selection_callback(attr, old, new):
-    global x_range, y_range
-    slider_x1.value = min(slider_x1.value, slider_x2.value)
-    slider_y1.value = min(slider_y1.value, slider_y2.value)
-    slider_x2.value = max(slider_x1.value, slider_x2.value)
-    slider_y2.value = max(slider_y1.value, slider_y2.value)
-    x_range = [slider_x1.value, slider_x2.value]
-    y_range = [slider_y1.value, slider_y2.value]
-    text_status.text = get_prophet_debug_text()
-    map_select_box_cds.data['x'] = [[x_range[0], x_range[1], x_range[1], x_range[0]]]
-    map_select_box_cds.data['y'] = [[y_range[1], y_range[1], y_range[0], y_range[0]]]
-slider_x1.on_change('value', slider_box_selection_callback)
-slider_y1.on_change('value', slider_box_selection_callback)
-slider_x2.on_change('value', slider_box_selection_callback)
-slider_y2.on_change('value', slider_box_selection_callback)
-'''
 # Create widgetbox of parameters
-widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws,
-        text_period)#, slider_x1, slider_x2, slider_y2, slider_y1)
+widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws, text_period)
 
 
 # Prophet parameters
 text_prophet_parameters = Div(text='<h3>Prophet parameters</h3>')
 checkbox_log_scale = CheckboxGroup(labels=['Logarithmic scale'], active=[])
 slider_window_size = Slider(start=1, end=21, value=1, step=1,
-                   title='Sliding window size')
+                            title='Sliding window size')
 text_reg_changepoint = TextInput(value='1.0', title='Regularizer changepoint (decimal number)')
 text_reg_season = TextInput(value='1.0', title='Regularizer season (decimal number)')
 slider_freq_days = Slider(start=1, end=21, value=1, step=1,
-                    title='Frequency of prediction (days in periods)')
+                          title='Frequency of prediction (days in periods)')
 text_periods = TextInput(value='1', title='Number of periods to predict (integer)')
 
 # Calculate button
 button_run_prophet = Button(label="Run Prohpet!")
 def button_run_prophet_callback():
     global x_range, y_range
-    log.debug("***** PROPHET PREDICT! ***** (x_range={},yrange={}, start={},end={})".format(
+    log.debug("***** PROPHET PREDICT ***** (x_range={},yrange={}, start={},end={})".format(
         x_range, y_range,
         df_piv.columns[get_start_index()].strftime("%Y-%m"),
         df_piv.columns[get_end_index()].strftime("%Y-%m")))
@@ -374,13 +354,13 @@ def button_run_prophet_callback():
         text_status.text = 'Regularizer: Not a decimal number!'
         return
     prophet_preprocessing_params = {
-         'df': df_full,
-         'x_range' : x_range,
-         'y_range' : y_range,
-         'date_range' : [df_piv.columns[get_start_index()], df_piv.columns[get_end_index()]],
-         'log_of_y': 0 in checkbox_log_scale.active,
-         'time_window': slider_window_size.value,
-         'pivot_aggr_fn': pivot_aggr_fn }
+        'df': df_full,
+        'x_range' : x_range,
+        'y_range' : y_range,
+        'date_range' : [df_piv.columns[get_start_index()], df_piv.columns[get_end_index()]],
+        'log_of_y': 0 in checkbox_log_scale.active,
+        'time_window': slider_window_size.value,
+        'pivot_aggr_fn': pivot_aggr_fn}
     try:
         periods = int(text_periods.value)
     except ValueError:
@@ -390,15 +370,16 @@ def button_run_prophet_callback():
     try:
         start_time = datetime.now()
         pred = run_prophet_prediction(
-                        prophet_preprocessing_params, reg_changepoint, reg_season,
-                        periods=periods, freq=slider_freq_days.value)
+            prophet_preprocessing_params, reg_changepoint, reg_season,
+            periods=periods, freq=slider_freq_days.value)
         update_prophet_datasource(*pred)
         end_time = datetime.now()
-        text_status.text = 'Prophet completed in {:d} seconds'.format((end_time - start_time).seconds)
+        text_status.text = 'Prophet completed in {:d} seconds'.format(
+            (end_time - start_time).seconds)
     except KeyError as e:
         text_status.text = 'Prophet error: No events within selection box {}'.format(str(e))
     except Exception as e:
-        text_status.text = 'Prophet error: {}'.format(str(e))
+        text_status.text = 'Prophet error: {} (likely insufficient data)'.format(str(e))
 button_run_prophet.on_click(button_run_prophet_callback)
 
 # Text: Status to display newest date in
@@ -410,22 +391,27 @@ widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log_scale,
                             button_run_prophet, text_status)
 
 # Create map of Africa
-africa_map = africa_map_figure(africa_map_cds, map_select_box_cds, data='value',
-        title="Color map of accumulated reported events in selected time period",
-        text_font_size = "18px",
-        color_mapper_type = color_mapper_type,
-        plot_dim = plot_dim)
+africa_map_figure_title = "Color map of accumulated reported events in selected time period"
+africa_map = africa_map_figure(africa_map_cds, map_select_box_cds,
+                               data='value',
+                               title=africa_map_figure_title,
+                               text_font_size="18px",
+                               color_mapper_type=color_mapper_type,
+                               plot_dim=plot_dim)
 
 # Add colormap legend
 colormap_legend = africa_map_add_legend(palette, plot_dim)
 
-map_and_colormap_legend = column(children=[africa_map, colormap_legend], sizing_mode='fixed')
-fig_map_and_controls = row(map_and_colormap_legend, column(children=[widgets_dataset, widgets_prophet]))
+map_and_colormap_legend = column(children=[africa_map, colormap_legend],
+                                 sizing_mode='fixed')
+fig_map_and_controls = row(map_and_colormap_legend,
+                           column(children=[widgets_dataset, widgets_prophet]))
 
 
 # Figure: Last result of Prophet model
-fig_prophet_result = figure(x_axis_type='datetime', title="Result of last Prophet Time Series model",
-                    plot_height = 600, plot_width = 1100)
+fig_prophet_result = figure(x_axis_type='datetime',
+                            title="Result of last Prophet Time Series model",
+                            plot_height=600, plot_width=1100)
 fig_prophet_result.xaxis[0].axis_label = 'Time'
 fig_prophet_result.yaxis[0].axis_label = '{} in time window'.format(variable.capitalize())
 fig_prophet_result.title.text_font_size = "18px"
