@@ -71,11 +71,11 @@ df_piv = df_piv.resample(time_window,
 gpd_df['value'] = df_piv.iloc[:, 0]
 
 # INCOMPATIBILITY FIX
-# Angola is a MultiPolygon (two disconnected areas on land). Geopandas
-# separates these two polygons by inserting np.float(np.nan) in between them
-# in the coordinate list. The np.nan type will cause a bokeh ValueError
-# exception bokeh, stating the type is not JSON serializable.
-# Workaround: Filter out the small portion of Angola.
+# In the ESRI shapefile, Angola is a 'MultiPolygon' object. This means that
+# two separate polygons make up Angola (the smaller being the Cabinda province).
+# In previous versions of Bokeh, this could be handled by inserting an 'np.nan'
+# in between the two lists of coordinates. However, this leads to a Bokeh
+# ValueError stating the type is not JSON serializable. We remove Cabinda below.
 gpd_df.set_value('Angola', 'x', gpd_df.loc['Angola', 'x'][:66])
 gpd_df.set_value('Angola', 'y', gpd_df.loc['Angola', 'y'][:66])
 
