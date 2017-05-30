@@ -351,7 +351,7 @@ text_period = Div(text=get_period_text())
 widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws, text_period)
 
 
-# Vairous widgets: Prophet parameter controls
+# Various widgets: Prophet parameter controls
 text_prophet_parameters = Div(text='<h3>Prophet parameters</h3>')
 checkbox_log_scale = CheckboxGroup(labels=['Logarithmic scale'], active=[])
 slider_window_size = Slider(start=1, end=21, value=1, step=1,
