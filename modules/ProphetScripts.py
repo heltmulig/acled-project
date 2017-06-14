@@ -20,7 +20,7 @@ import pandas as pd
 def prophet_prepare_df_cols(df, x_range, y_range, date_range,
                             days_to_test, log_of_y=False, time_window=7,
                             pivot_aggr_fn='count', date_col='event_date',
-                            y_col='fatalities'):
+                            y_col='fatalities', event_types):
     """ Function that preprocesses incoming dataframe, masking according to the
     provided parameters. Returns training and testing dataframes on format
     ['ds', 'y'], where 'ds' corresponds to dates and 'y' the value at 'ds'.
@@ -38,6 +38,7 @@ def prophet_prepare_df_cols(df, x_range, y_range, date_range,
                  sum of the events in the given time window.
     date_col:    Column where date is stored
     y_vol:       Column values we wish to analyse are stored.
+    event_types: List containing event types to be included in analysis
 
     Returns
     df_train:    All training points inside specified time window.
@@ -56,9 +57,17 @@ def prophet_prepare_df_cols(df, x_range, y_range, date_range,
     df_masked = df.loc[(mask_lon & mask_lat)]
 
     # Create pivot table, using selected aggregate function:
+    params_pivot = {'index': date_col, 'values': [y_col],
+                    'aggfunc': pivot_aggr_fn}
+    df_piv = pivot_resampled_filtered(df_masked, events_to_include=event_types,
+                                      params_pivot=params_pivot)
+
+    # Note: Code as it was before implementation of category selection:
+    """
     df_piv = df_masked.pivot_table(index=date_col,
                                    values=[y_col],
                                    aggfunc=pivot_aggr_fn)
+    """
 
     if log_of_y:
         df_piv[y_col] = np.log(df_piv[y_col])
