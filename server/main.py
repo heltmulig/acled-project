@@ -18,7 +18,7 @@ from bokeh.events import MouseMove, Tap
 from bokeh.layouts import column, row, widgetbox
 from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper, LogColorMapper, Range1d, Plot, Text
 from bokeh.models.glyphs import Rect
-from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider
+from bokeh.models.widgets import Div, CheckboxGroup, TextInput, Select, Button, Slider, Panel, Tabs
 from bokeh.palettes import OrRd9 as palette; palette.reverse()
 from bokeh.plotting import curdoc, figure
 from bokeh.settings import logging as log
@@ -347,11 +347,7 @@ slider_ws.on_change('value', slider_ws_callback)
 text_period = Div(text=get_period_text())
 
 
-# Create widgetbox of parameters
-widgets_dataset = widgetbox(select_preset, text_dataset, slider_et, slider_ws, text_period)
-
-
-# Various widgets: Prophet parameter controls
+# Prophet parameter controls
 text_prophet_parameters = Div(text='<h3>Prophet parameters</h3>')
 checkbox_log_scale = CheckboxGroup(labels=['Logarithmic scale'], active=[])
 slider_window_size = Slider(start=1, end=21, value=1, step=1,
@@ -361,6 +357,41 @@ text_reg_season = TextInput(value='1.0', title='Regularizer season (decimal numb
 slider_freq_days = Slider(start=1, end=21, value=1, step=1,
                           title='Frequency of prediction (days in periods)')
 text_periods = TextInput(value='1', title='Number of periods to predict (integer)')
+
+# Create widgetbox of parameters
+widgets_select = widgetbox(text_dataset,
+                           slider_et,
+                           slider_ws,
+                           text_period)
+panel_select = Panel(child=widgets_select, title='Area/Time')
+
+
+# Create Panel of selection of event types
+def get_sorted_event_types():
+    types = df_full['event_type'].unique()
+    types.sort()
+    return types.tolist()
+text_events = Div(text='<h3>Select event types</h3>')
+checkbox_events = CheckboxGroup(labels=get_sorted_event_types(), active=[])
+def checkbox_callback():
+    log.debug('Checkbox callback')
+#checkbox_events.on_change(checkbox_callback)
+
+widgets_events = widgetbox(text_events, checkbox_events)
+panel_events = Panel(child=widgets_events, title='Types')
+
+
+# Create Panel of Prophet parameters
+prophet_widgets = widgetbox(text_prophet_parameters,
+                            checkbox_log_scale,
+                            slider_window_size,
+                            text_reg_changepoint,
+                            text_reg_season,
+                            slider_freq_days,
+                            text_periods)
+panel_prophet = Panel(child=prophet_widgets, title='Prophet')
+
+
 # Button: Run Prophet!
 button_run_prophet = Button(label="Run Prohpet!")
 def button_run_prophet_callback():
@@ -418,10 +449,7 @@ button_run_prophet.on_click(button_run_prophet_callback)
 text_status = Div(text=get_newest_date_in_db_text())
 
 # Create widgetbox with all above widgets
-widgets_prophet = widgetbox(text_prophet_parameters, checkbox_log_scale,
-                            slider_window_size, text_reg_changepoint,
-                            text_reg_season, slider_freq_days, text_periods,
-                            button_run_prophet, text_status)
+widgets_bottom = widgetbox(button_run_prophet, text_status)
 
 
 # Below: Build complete plot from all above definitions
@@ -437,9 +465,12 @@ africa_map = africa_map_figure(africa_map_cds, map_select_area_cds,
 colormap_legend = africa_map_add_legend(palette, africa_map_plot_width)
 map_and_colormap_legend = column(children=[africa_map, colormap_legend],
                                  sizing_mode='fixed')
+
+tabs = Tabs(tabs=[panel_events, panel_select, panel_prophet])
+
 # Add controls
 fig_map_and_controls = row(map_and_colormap_legend,
-                           column(children=[widgets_dataset, widgets_prophet]))
+                           column(children=[select_preset, widgets_bottom, tabs]))
 
 # Build figure: Last result of Prophet model
 fig_prophet_result = figure(x_axis_type='datetime',

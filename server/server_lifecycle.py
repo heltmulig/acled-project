@@ -12,6 +12,11 @@ def on_server_loaded(server_context):
     acled = acleddata.ACLED()
     acled.mongodb_update_database() # Query the ACLED API for new entries
     df_full = acled.mongodb_get_entire_database()
+
+    # Strip and capitalize event_types column to avoid typing differences
+    # such as 'Strategic development' and 'Strategic Development ' (trailing space)
+    df_full['event_type'] = df_full['event_type'].apply(lambda x: x.strip().capitalize())
+
     setattr(server_context, 'df_full', df_full)
     log.debug("ACLED dataset loaded.");
 
