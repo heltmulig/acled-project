@@ -56,6 +56,10 @@ df_full = curdoc().df_full
 link_ESRI_shp = 'data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp'
 gpd_df = ImportShapefile(link_ESRI_shp).get_df()
 df_full, gpd_df = acled_preprocess(df_full, gpd_df)
+
+#params_pivot = {'index': 'event_date', 'columns': 'country',
+#                'values': 'fatalities', 'aggfunc': pivot_aggr_fn}
+
 df_piv = df_full.pivot_table(index='event_date',
                              columns='country',
                              values='fatalities',
@@ -67,6 +71,8 @@ df_piv = df_piv.resample(time_window,
                          closed='left',
                          label='right'
                         ).sum().fillna(value=0).T
+
+
 
 gpd_df['value'] = df_piv.iloc[:, 0]
 
@@ -372,10 +378,12 @@ def get_sorted_event_types():
     types.sort()
     return types.tolist()
 text_events = Div(text='<h3>Select event types</h3>')
-checkbox_events = CheckboxGroup(labels=get_sorted_event_types(), active=[])
-def checkbox_callback():
-    log.debug('Checkbox callback')
-#checkbox_events.on_change(checkbox_callback)
+event_types = get_sorted_event_types()
+checkbox_events = CheckboxGroup(labels=event_types, active=list(range(len(event_types))))
+def checkbox_callback(variable):
+    log.debug('Checkbox chosen: {}'.format(variable))
+    #import pdb; pdb.set_trace()
+checkbox_events.on_click(checkbox_callback)
 
 widgets_events = widgetbox(text_events, checkbox_events)
 panel_events = Panel(child=widgets_events, title='Types')
