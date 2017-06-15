@@ -16,10 +16,13 @@ def pivot_resampled_filtered(df_full, events_to_include, params_pivot):
 
     df_temp = df_full.copy()
 
-    mask = df_temp['event_type'].isin(events_to_include)
-    df_temp = df_temp[mask]
-
-    df_piv = df_temp.pivot_table(**params_pivot)
+    if events_to_include == []:
+        df_piv = df_temp.pivot_table(**params_pivot)
+        df_piv[:] = 0
+    else:
+        mask = df_temp['event_type'].isin(events_to_include)
+        df_temp = df_temp[mask]
+        df_piv = df_temp.pivot_table(**params_pivot)
 
     return df_piv
 
@@ -27,6 +30,7 @@ def resample_pivot_table(df_piv, resample_period='1M'):
     """ Takes pivot table, returns resampled pivot table
 
     Params:
+    df_piv: Pivot table, output of 'pivot_resampled_filtered'.
     resample_period: Resample period of pivot table (string on format '1M')
     """
     df_resampled = df_piv.resample(resample_period,
