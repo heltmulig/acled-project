@@ -14,17 +14,12 @@ def pivot_resampled_filtered(df_full, events_to_include, params_pivot):
     resample_period: Resample period of pivot table (string on format '1M')
     """
 
-    params_pivot = {'index': 'event_date', 'columns': 'country',
-                    'values': 'fatalities', 'aggfunc': pivot_aggr_fn}
-
-
     df_temp = df_full.copy()
 
     mask = df_temp['event_type'].isin(events_to_include)
     df_temp = df_temp[mask]
 
-    df_piv = df_full.pivot_table(**params_pivot)
-
+    df_piv = df_temp.pivot_table(**params_pivot)
 
     return df_piv
 

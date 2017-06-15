@@ -14,31 +14,33 @@ run_prophet_prediction:  Function taking in dataframe and masking parameters,
                          forecast from the model, training data and test data.
 """
 import numpy as np
-from fbprophet import Prophet
 import pandas as pd
 
-def prophet_prepare_df_cols(df, x_range, y_range, date_range,
+from fbprophet import Prophet
+import utils
+
+def prophet_prepare_df_cols(df, event_types, x_range, y_range, date_range,
                             days_to_test, log_of_y=False, time_window=7,
                             pivot_aggr_fn='count', date_col='event_date',
-                            y_col='fatalities', event_types):
+                            y_col='fatalities'):
     """ Function that preprocesses incoming dataframe, masking according to the
     provided parameters. Returns training and testing dataframes on format
     ['ds', 'y'], where 'ds' corresponds to dates and 'y' the value at 'ds'.
 
     Params:
-    df:         Pandas dataframe with columns [date_col, y_col] (date and value)
-    x_range:    Longitude parameters [x_min, x_max]
-    y_range:    Latitude paramters [y_min, y_max]
-    date_range: Time window, [start_date, end_date], both being datetime objects
-    days_to_test: Days into future for the returned df_test
-    log_of_y:   Boolean. Returns log(df[y_col]) as value, if true
-    time_window: Size of sliding window (each point represents sum of last days)
+    df:            Pandas dataframe with columns [date_col, y_col] (date and value)
+    event_types:   List containing event types to be included in analysis
+    x_range:       Longitude parameters [x_min, x_max]
+    y_range:       Latitude paramters [y_min, y_max]
+    date_range:    Time window, [start_date, end_date], both being datetime objects
+    days_to_test:  Days into future for the returned df_test
+    log_of_y:      Boolean. Returns log(df[y_col]) as value, if true
+    time_window:   Size of sliding window (each point represents sum of last days)
     pivot_aggr_fn: Accepts values: 'count' or 'sum'. 'count' retuns y as the
-                 number of events in the given time window, 'sum' returns the
-                 sum of the events in the given time window.
-    date_col:    Column where date is stored
-    y_vol:       Column values we wish to analyse are stored.
-    event_types: List containing event types to be included in analysis
+                   number of events in the given time window, 'sum' returns the
+                   sum of the events in the given time window.
+    date_col:      Column where date is stored
+    y_vol:         Column values we wish to analyse are stored.
 
     Returns
     df_train:    All training points inside specified time window.
@@ -59,8 +61,8 @@ def prophet_prepare_df_cols(df, x_range, y_range, date_range,
     # Create pivot table, using selected aggregate function:
     params_pivot = {'index': date_col, 'values': [y_col],
                     'aggfunc': pivot_aggr_fn}
-    df_piv = pivot_resampled_filtered(df_masked, events_to_include=event_types,
-                                      params_pivot=params_pivot)
+    df_piv = utils.pivot_resampled_filtered(df_masked, events_to_include=event_types,
+                                            params_pivot=params_pivot)
 
     # Note: Code as it was before implementation of category selection:
     """

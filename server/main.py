@@ -24,12 +24,14 @@ from bokeh.plotting import curdoc, figure
 from bokeh.settings import logging as log
 
 import numpy as np
+import pandas as pd
 
 from presets import presets as selected_presets
 from presets import names as selected_presets_names
 from ProphetScripts import run_prophet_prediction
 from ImportShapefile import ImportShapefile
 from acled_preprocess import acled_preprocess
+import utils
 
 
 app_name = "ACLED Data Science Laboratory"
@@ -57,9 +59,35 @@ link_ESRI_shp = 'data/ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp'
 gpd_df = ImportShapefile(link_ESRI_shp).get_df()
 df_full, gpd_df = acled_preprocess(df_full, gpd_df)
 
-#params_pivot = {'index': 'event_date', 'columns': 'country',
-#                'values': 'fatalities', 'aggfunc': pivot_aggr_fn}
+def get_all_event_types_sorted():
+    types = df_full['event_type'].unique()
+    types.sort()
+    return types.tolist()
+def get_events_to_include():
+    return [all_event_types[i] for i in checkbox_events.active]
+all_event_types = get_all_event_types_sorted()
+params_pivot = {'index': 'event_date', 'columns': 'country',
+               'values': 'fatalities', 'aggfunc': pivot_aggr_fn}
 
+df_piv = None
+def update_pivot_table(events_to_include=all_event_types, params_pivot=params_pivot):
+    global df_piv
+    log.debug('update_pivot_table(): New list of events:\n{}'.format(events_to_include))
+    df_new_piv = utils.pivot_resampled_filtered(df_full, events_to_include, params_pivot)
+    df_new_piv = utils.resample_pivot_table(df_new_piv)
+
+    # debug output
+    if df_piv is None:
+        df_piv = df_new_piv
+    tmp = pd.DataFrame({'old_event_count': df_piv.iloc[:, :].sum(axis=1),
+                  'new_event_count': df_new_piv.iloc[:, :].sum(axis=1)}, index=df_new_piv.index)
+    log.debug('Changed events:\n{}'.format(tmp[tmp.old_event_count != tmp.new_event_count]))
+    del tmp
+
+    df_piv = df_new_piv
+update_pivot_table()
+
+"""
 df_piv = df_full.pivot_table(index='event_date',
                              columns='country',
                              values='fatalities',
@@ -71,7 +99,7 @@ df_piv = df_piv.resample(time_window,
                          closed='left',
                          label='right'
                         ).sum().fillna(value=0).T
-
+"""
 
 
 gpd_df['value'] = df_piv.iloc[:, 0]
@@ -371,18 +399,11 @@ widgets_select = widgetbox(text_dataset,
                            text_period)
 panel_select = Panel(child=widgets_select, title='Area/Time')
 
-
-# Create Panel of selection of event types
-def get_sorted_event_types():
-    types = df_full['event_type'].unique()
-    types.sort()
-    return types.tolist()
 text_events = Div(text='<h3>Select event types</h3>')
-event_types = get_sorted_event_types()
-checkbox_events = CheckboxGroup(labels=event_types, active=list(range(len(event_types))))
+checkbox_events = CheckboxGroup(labels=all_event_types, active=list(range(len(all_event_types))))
 def checkbox_callback(variable):
-    log.debug('Checkbox chosen: {}'.format(variable))
-    #import pdb; pdb.set_trace()
+    update_pivot_table(events_to_include=get_events_to_include())
+    update_time_window_datasources()
 checkbox_events.on_click(checkbox_callback)
 
 widgets_events = widgetbox(text_events, checkbox_events)
@@ -427,6 +448,7 @@ def button_run_prophet_callback():
     # Prepare Prophet preprocessor parameters
     prophet_preprocessing_params = {
         'df': df_full,
+        'event_types': get_events_to_include(),
         'x_range' : x_range,
         'y_range' : y_range,
         'date_range' : [df_piv.columns[get_start_index()], df_piv.columns[get_end_index()]],
